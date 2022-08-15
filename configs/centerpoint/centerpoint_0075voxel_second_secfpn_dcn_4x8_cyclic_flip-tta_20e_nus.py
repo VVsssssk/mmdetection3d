@@ -8,17 +8,11 @@ class_names = [
 ]
 
 test_pipeline = [
-    dict(
-        type='LoadPointsFromFile',
-        coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
-        file_client_args=file_client_args),
+    dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=5, use_dim=5),
     dict(
         type='LoadPointsFromMultiSweeps',
         sweeps_num=9,
         use_dim=[0, 1, 2, 3, 4],
-        file_client_args=file_client_args,
         pad_empty_sweeps=True,
         remove_close=True),
     dict(
@@ -37,13 +31,9 @@ test_pipeline = [
                 translation_std=[0, 0, 0]),
             dict(type='RandomFlip3D', sync_2d=False),
             dict(
-                type='PointsRangeFilter', point_cloud_range=point_cloud_range),
-            dict(
-                type='DefaultFormatBundle3D',
-                class_names=class_names,
-                with_label=False),
-            dict(type='Collect3D', keys=['points'])
-        ])
+                type='PointsRangeFilter', point_cloud_range=point_cloud_range)
+        ]),
+    dict(type='Pack3DDetInputs', keys=['points'])
 ]
 
 data = dict(

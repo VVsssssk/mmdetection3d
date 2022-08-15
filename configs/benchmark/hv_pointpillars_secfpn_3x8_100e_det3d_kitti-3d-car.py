@@ -3,11 +3,14 @@ voxel_size = [0.16, 0.16, 4]
 point_cloud_range = [0, -39.68, -3, 69.12, 39.68, 1]
 model = dict(
     type='VoxelNet',
-    voxel_layer=dict(
-        max_num_points=64,
-        point_cloud_range=point_cloud_range,
-        voxel_size=voxel_size,
-        max_voxels=(12000, 20000)),
+    data_preprocessor=dict(
+        type='Det3DDataPreprocessor',
+        voxel=True,
+        voxel_layer=dict(
+            max_num_points=64,
+            point_cloud_range=point_cloud_range,
+            voxel_size=voxel_size,
+            max_voxels=(12000, 20000))),
     voxel_encoder=dict(
         type='PillarFeatureNet',
         in_channels=4,
@@ -83,7 +86,9 @@ db_sampler = dict(
     rate=1.0,
     prepare=dict(filter_by_difficulty=[-1], filter_by_min_points=dict(Car=5)),
     sample_groups=dict(Car=15),
-    classes=class_names)
+    classes=class_names,
+    points_loader=dict(
+        type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4))
 
 train_pipeline = [
     dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4),

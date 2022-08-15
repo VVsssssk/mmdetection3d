@@ -4,12 +4,14 @@ point_cloud_range = [0, -40, -3, 70.4, 40, 1]  # velodyne coordinates, x, y, z
 
 model = dict(
     type='PartA2',
-    voxel_layer=dict(
-        max_num_points=5,  # max_points_per_voxel
-        point_cloud_range=point_cloud_range,
-        voxel_size=voxel_size,
-        max_voxels=(16000, 40000)  # (training, testing) max_coxels
-    ),
+    data_preprocessor=dict(
+        type='Det3DDataPreprocessor',
+        voxel=True,
+        voxel_layer=dict(
+            max_num_points=5,  # max_points_per_voxel
+            point_cloud_range=point_cloud_range,
+            voxel_size=voxel_size,
+            max_voxels=(16000, 40000))),
     voxel_encoder=dict(type='HardSimpleVFE'),
     middle_encoder=dict(
         type='SparseUNet',
@@ -213,7 +215,9 @@ db_sampler = dict(
         filter_by_difficulty=[-1],
         filter_by_min_points=dict(Car=5, Pedestrian=5, Cyclist=5)),
     classes=class_names,
-    sample_groups=dict(Car=20, Pedestrian=15, Cyclist=15))
+    sample_groups=dict(Car=20, Pedestrian=15, Cyclist=15),
+    points_loader=dict(
+        type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4))
 train_pipeline = [
     dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),

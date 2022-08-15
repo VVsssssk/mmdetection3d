@@ -193,9 +193,9 @@ class _S3DISSegDataset(Seg3DDataset):
                     [255, 0, 255], [100, 100, 255], [200, 200, 100],
                     [170, 120, 200], [255, 0, 0], [200, 100, 100],
                     [10, 200, 100], [200, 200, 200], [50, 50, 50]],
-        'valid_class_ids':
+        'seg_valid_class_ids':
         tuple(range(13)),
-        'all_class_ids':
+        'seg_all_class_ids':
         tuple(range(14))  # possibly with 'stair' class
     }
 
@@ -298,6 +298,7 @@ class S3DISSegDataset(_S3DISSegDataset):
             ignore_index=ignore_index,
             scene_idxs=scene_idxs[0],
             test_mode=test_mode,
+            serialize_data=False,
             **kwargs)
 
         datasets = [
@@ -311,6 +312,7 @@ class S3DISSegDataset(_S3DISSegDataset):
                 ignore_index=ignore_index,
                 scene_idxs=scene_idxs[i],
                 test_mode=test_mode,
+                serialize_data=False,
                 **kwargs) for i in range(len(ann_files))
         ]
 

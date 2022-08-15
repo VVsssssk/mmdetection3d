@@ -388,6 +388,7 @@ class Det3DLocalVisualizer(DetLocalVisualizer):
                           palette: Optional[List[tuple]] = None,
                           ignore_index: Optional[int] = None):
         """Draw 3D semantic mask of GT or prediction.
+<<<<<<< HEAD
 
         Args:
             points (Tensor | np.ndarray): The input point
@@ -397,6 +398,19 @@ class Det3DLocalVisualizer(DetLocalVisualizer):
             palette (List[tuple], optional): Palette information
                 corresponding to the category.
             ignore_index (int): Ignore category.
+=======
+
+        Args:
+            points (Tensor | np.ndarray): The input point
+                cloud to draw.
+            pts_seg (:obj:`PointData`): Data structure for
+                pixel-level annotations or predictions.
+            palette (List[tuple], optional): Palette information
+                corresponding to the category. Defaults to None.
+            ignore_index (int, optional): Ignore category.
+                Defaults to None.
+
+>>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
         Returns:
             dict: the drawn points with color.
         """
@@ -543,9 +557,14 @@ class Det3DLocalVisualizer(DetLocalVisualizer):
                 pred_instances_3d = pred_sample.pred_instances_3d
                 # .cpu can not be used for BaseInstancesBoxes3D
                 # so we need to use .to('cpu')
+<<<<<<< HEAD
                 # pred_instances_3d = pred_instances_3d[
                 #     pred_instances_3d.scores_3d > pred_score_thr].to('cpu')
                 pred_instances_3d = pred_instances_3d.to('cpu')
+=======
+                pred_instances_3d = pred_instances_3d[
+                    pred_instances_3d.scores_3d > pred_score_thr].to('cpu')
+>>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
                 pred_data_3d = self._draw_instances_3d(data_input,
                                                        pred_instances_3d,
                                                        pred_sample.metainfo,

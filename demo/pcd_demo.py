@@ -1,8 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from argparse import ArgumentParser
 
-import numpy as np
-
 from mmdet3d.apis import inference_detector, init_model
 from mmdet3d.registry import VISUALIZERS
 from mmdet3d.utils import register_all_modules
@@ -32,7 +30,7 @@ def parse_args():
 
 
 def main(args):
-    # register all modules in mmdet into the registries
+    # register all modules in mmdet3d into the registries
     register_all_modules()
 
     # TODO: Support inference of point cloud numpy file.
@@ -43,14 +41,21 @@ def main(args):
     visualizer = VISUALIZERS.build(model.cfg.visualizer)
     visualizer.dataset_meta = {
         'CLASSES': model.CLASSES,
+<<<<<<< HEAD
         # 'PALETTE': model.palette
+=======
+>>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
     }
 
     # test a single point cloud sample
     result, data = inference_detector(model, args.pcd)
     points = data['inputs']['points']
+<<<<<<< HEAD
 
+=======
+>>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
     data_input = dict(points=points)
+
     # show the results
     visualizer.add_datasample(
         'result',

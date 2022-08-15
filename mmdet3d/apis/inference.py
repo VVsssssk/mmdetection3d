@@ -146,7 +146,12 @@ def inference_detector(model: nn.Module,
 def inference_multi_modality_detector(model: nn.Module,
                                       pcds: Union[str, Sequence[str]],
                                       imgs: Union[str, Sequence[str]],
+<<<<<<< HEAD
                                       ann_file: Union[str, Sequence[str]]):
+=======
+                                      ann_file: Union[str, Sequence[str]],
+                                      cam_type: str = 'CAM_FRONT'):
+>>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
     """Inference point cloud with the multi-modality detector.
 
     Args:
@@ -156,6 +161,14 @@ def inference_multi_modality_detector(model: nn.Module,
         imgs (str, Sequence[str]):
            Either image files or loaded images.
         ann_file (str, Sequence[str]): Annotation files.
+<<<<<<< HEAD
+=======
+        cam_type (str): Image of Camera chose to infer.
+            For kitti dataset, it should be 'CAM_2',
+            and for nuscenes dataset, it should be
+            'CAM_FRONT'. Defaults to 'CAM_FRONT'.
+
+>>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
     Returns:
         :obj:`Det3DDataSample` or list[:obj:`Det3DDataSample`]:
         If pcds is a list or tuple, the same length list type results
@@ -183,6 +196,7 @@ def inference_multi_modality_detector(model: nn.Module,
     data_list = mmcv.load(ann_file)['data_list']
     assert len(imgs) == len(data_list)
 
+<<<<<<< HEAD
     # kitti
     if 'CAM2' in data_list[0]['images']:
         cam_type = 'CAM2'
@@ -190,6 +204,8 @@ def inference_multi_modality_detector(model: nn.Module,
     elif 'CAM_FRONT' in data_list[0]['images']:
         cam_type = 'CAM_FRONT'
 
+=======
+>>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
     data = []
     for index, pcd in enumerate(pcds):
         # get data info containing calib
@@ -234,8 +250,15 @@ def inference_multi_modality_detector(model: nn.Module,
         return results, data
 
 
+<<<<<<< HEAD
 def inference_mono_3d_detector(model: nn.Module, imgs: ImagesType,
                                ann_file: Union[str, Sequence[str]]):
+=======
+def inference_mono_3d_detector(model: nn.Module,
+                               imgs: ImagesType,
+                               ann_file: Union[str, Sequence[str]],
+                               cam_type: str = 'CAM_FRONT'):
+>>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
     """Inference image with the monocular 3D detector.
 
     Args:
@@ -243,6 +266,14 @@ def inference_mono_3d_detector(model: nn.Module, imgs: ImagesType,
         imgs (str, Sequence[str]):
            Either image files or loaded images.
         ann_files (str, Sequence[str]): Annotation files.
+<<<<<<< HEAD
+=======
+        cam_type (str): Image of Camera chose to infer.
+            For kitti dataset, it should be 'CAM_2',
+            and for nuscenes dataset, it should be
+            'CAM_FRONT'. Defaults to 'CAM_FRONT'.
+
+>>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
     Returns:
         :obj:`Det3DDataSample` or list[:obj:`Det3DDataSample`]:
         If pcds is a list or tuple, the same length list type results
@@ -265,6 +296,7 @@ def inference_mono_3d_detector(model: nn.Module, imgs: ImagesType,
     data_list = mmcv.load(ann_file)
     assert len(imgs) == len(data_list)
 
+<<<<<<< HEAD
     # kitti
     if 'CAM2' in data_list[0]['images']:
         cam_type = 'CAM2'
@@ -272,6 +304,8 @@ def inference_mono_3d_detector(model: nn.Module, imgs: ImagesType,
     elif 'CAM_FRONT' in data_list[0]['images']:
         cam_type = 'CAM_FRONT'
 
+=======
+>>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
     data = []
     for index, img in enumerate(imgs):
         # get data info containing calib

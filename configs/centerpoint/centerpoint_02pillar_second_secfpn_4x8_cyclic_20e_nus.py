@@ -14,7 +14,8 @@ class_names = [
 ]
 data_prefix = dict(pts='samples/LIDAR_TOP', img='')
 model = dict(
-    pts_voxel_layer=dict(point_cloud_range=point_cloud_range),
+    data_preprocessor=dict(
+        voxel_layer=dict(point_cloud_range=point_cloud_range)),
     pts_voxel_encoder=dict(point_cloud_range=point_cloud_range),
     pts_bbox_head=dict(bbox_coder=dict(pc_range=point_cloud_range[:2])),
     # model training and testing settings
@@ -58,21 +59,14 @@ db_sampler = dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
         load_dim=5,
-        use_dim=[0, 1, 2, 3, 4],
-        file_client_args=file_client_args))
+        use_dim=[0, 1, 2, 3, 4]))
 
 train_pipeline = [
-    dict(
-        type='LoadPointsFromFile',
-        coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
-        file_client_args=file_client_args),
+    dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=5, use_dim=5),
     dict(
         type='LoadPointsFromMultiSweeps',
         sweeps_num=9,
         use_dim=[0, 1, 2, 3, 4],
-        file_client_args=file_client_args,
         pad_empty_sweeps=True,
         remove_close=True),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
@@ -96,17 +90,11 @@ train_pipeline = [
         keys=['points', 'gt_bboxes_3d', 'gt_labels_3d'])
 ]
 test_pipeline = [
-    dict(
-        type='LoadPointsFromFile',
-        coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
-        file_client_args=file_client_args),
+    dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=5, use_dim=5),
     dict(
         type='LoadPointsFromMultiSweeps',
         sweeps_num=9,
         use_dim=[0, 1, 2, 3, 4],
-        file_client_args=file_client_args,
         pad_empty_sweeps=True,
         remove_close=True),
     dict(
@@ -124,24 +112,7 @@ test_pipeline = [
         ]),
     dict(type='Pack3DDetInputs', keys=['points'])
 ]
-# construct a pipeline for data and gt loading in show function
-# please keep its loading function consistent with test_pipeline (e.g. client)
-eval_pipeline = [
-    dict(
-        type='LoadPointsFromFile',
-        coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
-        file_client_args=file_client_args),
-    dict(
-        type='LoadPointsFromMultiSweeps',
-        sweeps_num=9,
-        use_dim=[0, 1, 2, 3, 4],
-        file_client_args=file_client_args,
-        pad_empty_sweeps=True,
-        remove_close=True),
-    dict(type='Pack3DDetInputs', keys=['points'])
-]
+
 train_dataloader = dict(
     _delete_=True,
     batch_size=4,

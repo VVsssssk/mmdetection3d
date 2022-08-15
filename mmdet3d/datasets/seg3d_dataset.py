@@ -50,8 +50,8 @@ class Seg3DDataset(BaseDataset):
     METAINFO = {
         'CLASSES': None,  # names of all classes data used for the task
         'PALETTE': None,  # official color for visualization
-        'valid_class_ids': None,  # class_ids used for training
-        'all_class_ids': None,  # all possible class_ids in loaded seg mask
+        'seg_valid_class_ids': None,  # class_ids used for training
+        'seg_all_class_ids': None,  # all possible class_ids in loaded seg mask
     }
 
     def __init__(self,
@@ -84,12 +84,13 @@ class Seg3DDataset(BaseDataset):
         # Get label mapping for custom classes
         new_classes = metainfo.get('CLASSES', None)
 
-        self.label_mapping, self.label2cat, valid_class_ids = \
+        self.label_mapping, self.label2cat, seg_valid_class_ids = \
             self.get_label_mapping(new_classes)
 
         metainfo['label_mapping'] = self.label_mapping
         metainfo['label2cat'] = self.label2cat
-        metainfo['valid_class_ids'] = valid_class_ids
+        metainfo['ignore_index'] = self.ignore_index
+        metainfo['seg_valid_class_ids'] = seg_valid_class_ids
 
         # generate palette if it is not defined based on
         # label mapping, otherwise directly use palette
@@ -98,6 +99,16 @@ class Seg3DDataset(BaseDataset):
         updated_palette = self._update_palette(new_classes, palette)
 
         metainfo['PALETTE'] = updated_palette
+
+        # construct seg_label_mapping for semantic mask
+        seg_max_cat_id = len(self.METAINFO['seg_all_class_ids'])
+        seg_valid_cat_ids = self.METAINFO['seg_valid_class_ids']
+        neg_label = len(seg_valid_cat_ids)
+        seg_label_mapping = np.ones(
+            seg_max_cat_id + 1, dtype=np.int) * neg_label
+        for cls_idx, cat_id in enumerate(seg_valid_cat_ids):
+            seg_label_mapping[cat_id] = cls_idx
+        self.seg_label_mapping = seg_label_mapping
 
         super().__init__(
             ann_file=ann_file,
@@ -108,6 +119,7 @@ class Seg3DDataset(BaseDataset):
             test_mode=test_mode,
             **kwargs)
 
+        self.metainfo['seg_label_mapping'] = self.seg_label_mapping
         self.scene_idxs = self.get_scene_idxs(scene_idxs)
 
         # set group flag for the sampler
@@ -134,10 +146,9 @@ class Seg3DDataset(BaseDataset):
             tuple: The mapping from old classes in cls.METAINFO to
                 new classes in metainfo
         """
-        old_classes = self.METAINFO.get('CLASSSES', None)
+        old_classes = self.METAINFO.get('CLASSES', None)
         if (new_classes is not None and old_classes is not None
                 and list(new_classes) != list(old_classes)):
-            label_mapping = {}
             if not set(new_classes).issubset(old_classes):
                 raise ValueError(
                     f'new classes {new_classes} is not a '
@@ -145,12 +156,12 @@ class Seg3DDataset(BaseDataset):
 
             # obtain true id from valid_class_ids
             valid_class_ids = [
-                self.METAINFO['valid_class_ids'][old_classes.index(cls_name)]
-                for cls_name in new_classes
+                self.METAINFO['seg_valid_class_ids'][old_classes.index(
+                    cls_name)] for cls_name in new_classes
             ]
             label_mapping = {
                 cls_id: self.ignore_index
-                for cls_id in self.METAINFO['all_class_ids']
+                for cls_id in self.METAINFO['seg_all_class_ids']
             }
             label_mapping.update(
                 {cls_id: i
@@ -159,18 +170,19 @@ class Seg3DDataset(BaseDataset):
         else:
             label_mapping = {
                 cls_id: self.ignore_index
-                for cls_id in self.METAINFO['all_class_ids']
+                for cls_id in self.METAINFO['seg_all_class_ids']
             }
             label_mapping.update({
                 cls_id: i
-                for i, cls_id in enumerate(self.METAINFO['valid_class_ids'])
+                for i, cls_id in enumerate(
+                    self.METAINFO['seg_valid_class_ids'])
             })
             # map label to category name
             label2cat = {
                 i: cat_name
                 for i, cat_name in enumerate(self.METAINFO['CLASSES'])
             }
-            valid_class_ids = self.METAINFO['valid_class_ids']
+            valid_class_ids = self.METAINFO['seg_valid_class_ids']
 
         return label_mapping, label2cat, valid_class_ids
 
@@ -188,7 +200,7 @@ class Seg3DDataset(BaseDataset):
         if palette is None:
             # If palette is not defined, it generate a palette according
             # to the original PALETTE and classes.
-            old_classes = self.METAINFO.get('CLASSSES', None)
+            old_classes = self.METAINFO.get('CLASSES', None)
             palette = [
                 self.METAINFO['PALETTE'][old_classes.index(cls_name)]
                 for cls_name in new_classes
@@ -238,9 +250,9 @@ class Seg3DDataset(BaseDataset):
                 osp.join(self.data_prefix.get('pts_semantic_mask', ''),
                          info['pts_semantic_mask_path'])
 
-        # Add label_mapping to input dict for directly
-        # use it in PointSegClassMapping pipeline
-        info['label_mapping'] = self.label_mapping
+        # only be used in `PointSegClassMapping` in pipeline
+        # to map original semantic class to valid category ids.
+        info['seg_label_mapping'] = self.seg_label_mapping
 
         # 'eval_ann_info' will be updated in loading transforms
         if self.test_mode and self.load_eval_anns:
@@ -255,13 +267,14 @@ class Seg3DDataset(BaseDataset):
         """
         if self.test_mode:
             # when testing, we load one whole scene every time
-            return np.arange(len(self.data_list)).astype(np.int32)
+            return np.arange(len(self)).astype(np.int32)
 
         # we may need to re-sample different scenes according to scene_idxs
         # this is necessary for indoor scene segmentation such as ScanNet
         if scene_idxs is None:
-            scene_idxs = np.arange(len(self.data_list))
+            scene_idxs = np.arange(len(self))
         if isinstance(scene_idxs, str):
+            scene_idxs = osp.join(self.data_root, scene_idxs)
             with self.file_client.get_local_path(scene_idxs) as local_path:
                 scene_idxs = np.load(local_path)
         else:
