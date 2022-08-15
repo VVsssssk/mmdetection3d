@@ -317,13 +317,9 @@ class PointSegClassMapping(BaseTransform):
         assert 'pts_semantic_mask' in results
         pts_semantic_mask = results['pts_semantic_mask']
 
-<<<<<<< HEAD
-        converted_pts_sem_mask = self.cat_id2class[pts_semantic_mask]
-=======
         assert 'seg_label_mapping' in results
         label_mapping = results['seg_label_mapping']
         converted_pts_sem_mask = label_mapping[pts_semantic_mask]
->>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
 
         results['pts_semantic_mask'] = converted_pts_sem_mask
 

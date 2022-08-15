@@ -41,19 +41,11 @@ def main(args):
     visualizer = VISUALIZERS.build(model.cfg.visualizer)
     visualizer.dataset_meta = {
         'CLASSES': model.CLASSES,
-<<<<<<< HEAD
-        # 'PALETTE': model.palette
-=======
->>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
     }
 
     # test a single point cloud sample
     result, data = inference_detector(model, args.pcd)
     points = data['inputs']['points']
-<<<<<<< HEAD
-
-=======
->>>>>>> 84b132b03846f6c64817248e62e0d78ec41b72f0
     data_input = dict(points=points)
 
     # show the results
