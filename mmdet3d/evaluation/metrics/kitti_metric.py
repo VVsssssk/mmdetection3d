@@ -7,6 +7,7 @@ import mmcv
 import numpy as np
 import torch
 from mmcv.utils import print_log
+from mmengine import load
 from mmengine.evaluator import BaseMetric
 from mmengine.logging import MMLogger
 
@@ -50,7 +51,8 @@ class KittiMetric(BaseMetric):
                  prefix: Optional[str] = None,
                  pklfile_prefix: str = None,
                  submission_prefix: str = None,
-                 collect_device: str = 'cpu'):
+                 collect_device: str = 'cpu',
+                 file_client_args: dict = dict(backend='disk')):
         self.default_prefix = 'Kitti metric'
         super(KittiMetric, self).__init__(
             collect_device=collect_device, prefix=prefix)
@@ -59,6 +61,7 @@ class KittiMetric(BaseMetric):
         self.pklfile_prefix = pklfile_prefix
         self.submission_prefix = submission_prefix
         self.pred_box_type_3d = pred_box_type_3d
+        self.file_client_args = file_client_args
 
         allowed_metrics = ['bbox', 'img_bbox', 'mAP']
         self.metrics = metric if isinstance(metric, list) else [metric]
@@ -76,13 +79,11 @@ class KittiMetric(BaseMetric):
         ]
     ) -> list:
         """Convert loading annotations to Kitti annotations.
-
         Args:
             data_annos (list[dict]): Annotations loaded from ann_file.
             classes (list[str]): Classes used in the dataset. Default used
                 ['Pedestrian', 'Cyclist', 'Car', 'Van', 'Truck',
                 'Person_sitting', 'Tram', 'Misc'].
-
         Returns:
             List[dict]: List of Kitti annotations.
         """
@@ -131,18 +132,6 @@ class KittiMetric(BaseMetric):
             data_annos[i]['kitti_annos'] = kitti_annos
         return data_annos
 
-    def load_annotations(self, ann_file: str) -> list:
-        """Load annotations from ann_file.
-
-        Args:
-            ann_file (str): Path of the annotation file.
-
-        Returns:
-            list[dict]: List of annotations.
-        """
-        # loading data from a pkl file
-        return mmcv.load(ann_file, file_format='pkl')
-
     def process(self, data_batch: Sequence[dict],
                 predictions: Sequence[dict]) -> None:
         """Process one batch of data samples and predictions.
@@ -150,7 +139,6 @@ class KittiMetric(BaseMetric):
         The processed results should be stored in ``self.results``,
         which will be used to compute the metrics when all batches
         have been processed.
-
         Args:
             data_batch (Sequence[dict]): A batch of data
                 from the dataloader.
@@ -174,7 +162,6 @@ class KittiMetric(BaseMetric):
 
         Args:
             results (list): The processed results of each batch.
-
         Returns:
             Dict[str, float]: The computed metrics. The keys are the names of
             the metrics, and the values are corresponding results.
@@ -183,7 +170,8 @@ class KittiMetric(BaseMetric):
         self.classes = self.dataset_meta['CLASSES']
 
         # load annotations
-        pkl_annos = self.load_annotations(self.ann_file)['data_list']
+        pkl_annos = load(
+            self.ann_file, file_client_args=self.file_client_args)['data_list']
         self.data_infos = self.convert_annos_to_kitti_annos(pkl_annos)
         result_dict, tmp_dir = self.format_results(
             results,
@@ -228,7 +216,6 @@ class KittiMetric(BaseMetric):
                 related information during evaluation. Default: None.
             classes (list[String], optional): A list of class name. Defaults
                 to None.
-
         Returns:
             dict[str, float]: Results of each evaluation metric.
         """
@@ -267,7 +254,6 @@ class KittiMetric(BaseMetric):
                 Default: None.
             classes (list[String], optional): A list of class name. Defaults
                 to None.
-
         Returns:
             tuple: (result_dict, tmp_dir), result_dict is a dict containing
                 the formatted result, tmp_dir is the temporal directory created
@@ -289,19 +275,20 @@ class KittiMetric(BaseMetric):
                 pklfile_prefix_ = osp.join(pklfile_prefix, name) + '.pkl'
             else:
                 pklfile_prefix_ = None
-            if 'pred_instances' in name and '3d' in name and name[0] != '_':
+            # if 'pred_instances' in name and '3d' in name and name[0] != '_':
+            if name == 'pred_instances_3d':
                 net_outputs = [result[name] for result in results]
                 result_list_ = self.bbox2result_kitti(net_outputs,
                                                       sample_id_list, classes,
                                                       pklfile_prefix_,
                                                       submission_prefix_)
                 result_dict[name] = result_list_
-            elif name == 'pred_instances' and name[0] != '_':
-                net_outputs = [info[name] for info in results]
-                result_list_ = self.bbox2result_kitti2d(
-                    net_outputs, sample_id_list, classes, pklfile_prefix_,
-                    submission_prefix_)
-                result_dict[name] = result_list_
+            # elif name == 'pred_instances' and name[0] != '_':
+            #     net_outputs = [info[name] for info in results]
+            #     result_list_ = self.bbox2result_kitti2d(
+            #         net_outputs, sample_id_list, classes, pklfile_prefix_,
+            #         submission_prefix_)
+            #     result_dict[name] = result_list_
         return result_dict, tmp_dir
 
     def bbox2result_kitti(self,
@@ -322,7 +309,6 @@ class KittiMetric(BaseMetric):
                 Defaults to None.
             submission_prefix (str, optional): The prefix of submission file.
                 Defaults to None.
-
         Returns:
             list[dict]: A list of dictionaries with the kitti format.
         """
@@ -451,7 +437,6 @@ class KittiMetric(BaseMetric):
                 Defaults to None.
             submission_prefix (str, optional): The prefix of submission file.
                 Defaults to None.
-
         Returns:
             list[dict]: A list of dictionaries have the kitti format
         """
@@ -552,18 +537,14 @@ class KittiMetric(BaseMetric):
 
     def convert_valid_bboxes(self, box_dict: dict, info: dict):
         """Convert the predicted boxes into valid ones.
-
         Args:
             box_dict (dict): Box dictionaries to be converted.
-
                 - boxes_3d (:obj:`LiDARInstance3DBoxes`): 3D bounding boxes.
                 - scores_3d (torch.Tensor): Scores of boxes.
                 - labels_3d (torch.Tensor): Class labels of boxes.
             info (dict): Data info.
-
         Returns:
             dict: Valid predicted boxes.
-
                 - bbox (np.ndarray): 2D bounding boxes.
                 - box3d_camera (np.ndarray): 3D bounding boxes in
                     camera coordinate.

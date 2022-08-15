@@ -1,7 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch
 from mmcv.cnn import ConvModule
-from mmcv.ops import GroupAll
 from mmcv.ops import PointsSampler as Points_Sampler
 from mmcv.ops import QueryAndGroup, gather_points
 from torch import nn as nn
@@ -92,21 +91,33 @@ class BasePointSAModule(nn.Module):
         for i in range(len(radii)):
             radius = radii[i]
             sample_num = sample_nums[i]
-            if num_point is not None:
-                if dilated_group and i != 0:
-                    min_radius = radii[i - 1]
-                else:
-                    min_radius = 0
-                grouper = QueryAndGroup(
-                    radius,
-                    sample_num,
-                    min_radius=min_radius,
-                    use_xyz=use_xyz,
-                    normalize_xyz=normalize_xyz,
-                    return_grouped_xyz=grouper_return_grouped_xyz,
-                    return_grouped_idx=grouper_return_grouped_idx)
+            # if num_point is not None:
+            #     if dilated_group and i != 0:
+            #         min_radius = radii[i - 1]
+            #     else:
+            #         min_radius = 0
+            #     grouper = QueryAndGroup(
+            #         radius,
+            #         sample_num,
+            #         min_radius=min_radius,
+            #         use_xyz=use_xyz,
+            #         normalize_xyz=normalize_xyz,
+            #         return_grouped_xyz=grouper_return_grouped_xyz,
+            #         return_grouped_idx=grouper_return_grouped_idx)
+            if dilated_group and i != 0:
+                min_radius = radii[i - 1]
             else:
-                grouper = GroupAll(use_xyz)
+                min_radius = 0
+            grouper = QueryAndGroup(
+                radius,
+                sample_num,
+                min_radius=min_radius,
+                use_xyz=use_xyz,
+                normalize_xyz=normalize_xyz,
+                return_grouped_xyz=grouper_return_grouped_xyz,
+                return_grouped_idx=grouper_return_grouped_idx)
+            # else:
+            #     grouper = GroupAll(use_xyz)
             self.groupers.append(grouper)
 
     def _sample_points(self, points_xyz, features, indices, target_xyz):

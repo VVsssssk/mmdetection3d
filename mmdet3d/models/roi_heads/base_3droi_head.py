@@ -32,7 +32,8 @@ class Base3DRoIHead(BaseRoIHead):
                 roi extractor.
             bbox_head (dict or ConfigDict): Config of box in box head.
         """
-        self.bbox_roi_extractor = MODELS.build(bbox_roi_extractor)
+        if bbox_roi_extractor is not None:
+            self.bbox_roi_extractor = MODELS.build(bbox_roi_extractor)
         self.bbox_head = MODELS.build(bbox_head)
 
     def init_assigner_sampler(self):

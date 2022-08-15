@@ -43,13 +43,13 @@ def main(args):
     visualizer = VISUALIZERS.build(model.cfg.visualizer)
     visualizer.dataset_meta = {
         'CLASSES': model.CLASSES,
-        'PALETTE': model.palette
+        # 'PALETTE': model.palette
     }
 
     # test a single point cloud sample
     result, data = inference_detector(model, args.pcd)
+    points = data['inputs']['points']
 
-    points = np.fromfile(args.pcd, dtype=np.float32)
     data_input = dict(points=points)
     # show the results
     visualizer.add_datasample(
@@ -58,7 +58,7 @@ def main(args):
         pred_sample=result,
         show=True,
         wait_time=0,
-        out_file=args.out_file,
+        out_file=args.out_dir,
         pred_score_thr=args.score_thr,
         vis_task='det')
 
