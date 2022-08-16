@@ -144,17 +144,14 @@ model = dict(
         dir_offset=0.78539,
         anchor_generator=dict(
             type='Anchor3DRangeGenerator',
-            # ranges=[[0.2, -39.8, -0.6, 70.2, 39.8, -0.6],
-            #         [0.2, -39.8, -0.6, 70.2, 39.8, -0.6],
-            #         [0.2, -39.8, -1.78, 70.2, 39.8, -1.78]],
-            # ranges=[[0, -40, -1.78, 70.4, 40, 1], [0, -40, -0.6, 70.4, 40, 1],
-            #         [0, -40, -0.6, 70.4, 40, 1]],
-            # # sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
+            # ranges=[[0, -40.0, -1, 70.4, 40.0, -1],
+            #         [0, -40.0, 0.265, 70.4, 40.0, 0.265],
+            #         [0, -40.0, 0.265, 70.4, 40.0, 0.265]],
             # sizes=[[3.9, 1.6, 1.56], [0.8, 0.6, 1.73], [1.76, 0.6, 1.73]],
-            ranges=[[0, -40.0, -1, 70.4, 40.0, -1],
+            ranges=[[0, -40.0, 0.265, 70.4, 40.0, 0.265],
                     [0, -40.0, 0.265, 70.4, 40.0, 0.265],
-                    [0, -40.0, 0.265, 70.4, 40.0, 0.265]],
-            sizes=[[3.9, 1.6, 1.56], [0.8, 0.6, 1.73], [1.76, 0.6, 1.73]],
+                    [0, -40.0, -1, 70.4, 40.0, -1]],
+            sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
             rotations=[0, 1.57],
             reshape_out=False),
         diff_rad_by_sin=True,
@@ -306,9 +303,45 @@ model = dict(
             nms_thr=0.1,
             score_thr=0.1)))
 train_dataloader = dict(
-    batch_size=2,
-    num_workers=1,
+    batch_size=4,
+    num_workers=4,
     dataset=dict(dataset=dict(pipeline=train_pipeline)))
 test_dataloader = dict(dataset=dict(pipeline=test_pipeline))
 
 randomness = dict(seed=666, deterministic=True)
+lr = 0.001
+optim_wrapper = dict(optimizer=dict(lr=lr))
+param_scheduler = [
+    dict(
+        type='CosineAnnealingLR',
+        T_max=16,
+        eta_min=lr * 10,
+        begin=0,
+        end=16,
+        by_epoch=True,
+        convert_to_iter_based=True),
+    dict(
+        type='CosineAnnealingLR',
+        T_max=24,
+        eta_min=lr * 1e-4,
+        begin=16,
+        end=40,
+        by_epoch=True,
+        convert_to_iter_based=True),
+    dict(
+        type='CosineAnnealingMomentum',
+        T_max=16,
+        eta_min=0.85 / 0.95,
+        begin=0,
+        end=16,
+        by_epoch=True,
+        convert_to_iter_based=True),
+    dict(
+        type='CosineAnnealingMomentum',
+        T_max=24,
+        eta_min=1,
+        begin=16,
+        end=40,
+        by_epoch=True,
+        convert_to_iter_based=True)
+]

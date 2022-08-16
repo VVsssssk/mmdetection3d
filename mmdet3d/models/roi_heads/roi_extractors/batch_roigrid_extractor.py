@@ -31,6 +31,10 @@ class Batch3DRoIGridExtractor(BaseModule):
                                                self.grid_size, self.grid_size,
                                                pooled_features.shape[-1])
         # (BxN, 6, 6, 6, C)
+        # import torch
+        # pooled_features = torch.load('pooled_features.pkl').view(-1,self.grid_size,
+        #                                        self.grid_size, self.grid_size,
+        #                                        pooled_features.shape[-1])
         return pooled_features
 
     def get_dense_grid_points(self, rois):
