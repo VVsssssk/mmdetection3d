@@ -60,7 +60,7 @@ def main():
     # load config
     cfg = Config.fromfile(args.config)
 
-    cfg = replace_ceph_backend(cfg)
+    # cfg = replace_ceph_backend(cfg)
 
     cfg.launcher = args.launcher
     if args.cfg_options is not None:

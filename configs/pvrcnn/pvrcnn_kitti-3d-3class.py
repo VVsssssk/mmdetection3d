@@ -75,7 +75,6 @@ model = dict(
         type='VoxelSetAbstraction',
         voxel_size=voxel_size,
         point_cloud_range=point_cloud_range,
-        rawpoints_dim=4,
         keypoints_sampler=dict(
             fps_mod_list=['D-FPS'],
             num_point=[2048],
@@ -86,7 +85,7 @@ model = dict(
             use_xyz=True,
             radii=(0.4, 0.8),
             sample_nums=(16, 16),
-            mlp_channels=((16, 16), (16, 16))),
+            mlp_channels=((1, 16, 16), (1, 16, 16))),
         voxel_sa_cfg_list=[
             dict(
                 scale_factor=1,
@@ -121,8 +120,8 @@ model = dict(
                 sample_nums=(16, 32),
                 mlp_channels=((64, 64, 64), (64, 64, 64)))
         ],
-        bev_sa_cfg=dict(scale_factor=8, in_channels=256),
-        out_channels=128,
+        bev_cfg=dict(scale_factor=8, in_channels=256),
+        fused_out_channels=128,
     ),
     backbone=dict(
         type='SECOND',
@@ -144,14 +143,14 @@ model = dict(
         dir_offset=0.78539,
         anchor_generator=dict(
             type='Anchor3DRangeGenerator',
-            # ranges=[[0, -40.0, -1, 70.4, 40.0, -1],
-            #         [0, -40.0, 0.265, 70.4, 40.0, 0.265],
-            #         [0, -40.0, 0.265, 70.4, 40.0, 0.265]],
-            # sizes=[[3.9, 1.6, 1.56], [0.8, 0.6, 1.73], [1.76, 0.6, 1.73]],
-            ranges=[[0, -40.0, 0.265, 70.4, 40.0, 0.265],
+            ranges=[[0, -40.0, -1, 70.4, 40.0, -1],
                     [0, -40.0, 0.265, 70.4, 40.0, 0.265],
-                    [0, -40.0, -1, 70.4, 40.0, -1]],
-            sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
+                    [0, -40.0, 0.265, 70.4, 40.0, 0.265]],
+            sizes=[[3.9, 1.6, 1.56], [0.8, 0.6, 1.73], [1.76, 0.6, 1.73]],
+            # ranges=[[0, -40.0, 0.265, 70.4, 40.0, 0.265],
+            #         [0, -40.0, 0.265, 70.4, 40.0, 0.265],
+            #         [0, -40.0, -1, 70.4, 40.0, -1]],
+            # sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
             rotations=[0, 1.57],
             reshape_out=False),
         diff_rad_by_sin=True,
@@ -303,8 +302,8 @@ model = dict(
             nms_thr=0.1,
             score_thr=0.1)))
 train_dataloader = dict(
-    batch_size=4,
-    num_workers=4,
+    batch_size=1,
+    num_workers=1,
     dataset=dict(dataset=dict(pipeline=train_pipeline)))
 test_dataloader = dict(dataset=dict(pipeline=test_pipeline))
 

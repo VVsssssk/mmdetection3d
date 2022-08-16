@@ -38,6 +38,8 @@ class SparseEncoder(nn.Module):
             Defaults to ((1, ), (1, 1, 1), (1, 1, 1), ((0, 1, 1), 1, 1)).
         block_type (str, optional): Type of the block to use.
             Defaults to 'conv_module'.
+        mlvl_outputs (bool, optional): Whether output middle features.
+            Default to False.
     """
 
     def __init__(self,
