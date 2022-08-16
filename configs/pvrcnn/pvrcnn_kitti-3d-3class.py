@@ -79,6 +79,7 @@ model = dict(
             fps_mod_list=['D-FPS'],
             num_point=[2048],
             fps_sample_range_list=[-1]),
+        sample_mode='raw_points',
         rawpoint_sa_cfg=dict(
             type='PointSAModuleMSG',
             num_point=None,
