@@ -117,7 +117,7 @@ class PointwiseMaskHead(BaseModule):
         gt_bboxes_3d = []
         gt_labels_3d = []
         for idx in range(batch_size):
-            points_xyz_list.append(points_bxyz[idx, :, 1:])
+            points_xyz_list.append(points_bxyz[idx, :, :])
             gt_bboxes_3d.append(batch_gt_instances_3d[idx].bboxes_3d)
             gt_labels_3d.append(batch_gt_instances_3d[idx].labels_3d)
         seg_targets, = multi_apply(self.get_targets_single, points_xyz_list,
