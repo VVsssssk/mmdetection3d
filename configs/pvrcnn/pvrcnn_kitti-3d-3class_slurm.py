@@ -144,14 +144,14 @@ model = dict(
         dir_offset=0.78539,
         anchor_generator=dict(
             type='Anchor3DRangeGenerator',
-            ranges=[[0, -40.0, -1, 70.4, 40.0, -1],
-                    [0, -40.0, 0.265, 70.4, 40.0, 0.265],
-                    [0, -40.0, 0.265, 70.4, 40.0, 0.265]],
-            sizes=[[3.9, 1.6, 1.56], [0.8, 0.6, 1.73], [1.76, 0.6, 1.73]],
-            # ranges=[[0, -40.0, 0.265, 70.4, 40.0, 0.265],
+            # ranges=[[0, -40.0, -1, 70.4, 40.0, -1],
             #         [0, -40.0, 0.265, 70.4, 40.0, 0.265],
-            #         [0, -40.0, -1, 70.4, 40.0, -1]],
-            # sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
+            #         [0, -40.0, 0.265, 70.4, 40.0, 0.265]],
+            # sizes=[[3.9, 1.6, 1.56], [0.8, 0.6, 1.73], [1.76, 0.6, 1.73]],
+            ranges=[[0, -40.0, 0.265, 70.4, 40.0, 0.265],
+                    [0, -40.0, 0.265, 70.4, 40.0, 0.265],
+                    [0, -40.0, -1, 70.4, 40.0, -1]],
+            sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
             rotations=[0, 1.57],
             reshape_out=False),
         diff_rad_by_sin=True,
@@ -303,8 +303,8 @@ model = dict(
             nms_thr=0.1,
             score_thr=0.1)))
 train_dataloader = dict(
-    batch_size=1,
-    num_workers=1,
+    batch_size=4,
+    num_workers=4,
     dataset=dict(dataset=dict(pipeline=train_pipeline)))
 test_dataloader = dict(dataset=dict(pipeline=test_pipeline))
 
