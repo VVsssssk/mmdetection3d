@@ -203,7 +203,7 @@ class PVRCNNBboxHead(BaseModule):
                 # decode boxes
                 pred_boxes3d = self.bbox_coder.decode(
                     batch_anchors,
-                    pos_bbox_pred.view(-1, code_size)).view(-1, code_size)
+                    pos_bbox_pred.view(-1, code_size),bottom_center=True).view(-1, code_size)
 
                 pred_boxes3d[..., 0:3] = rotation_3d_in_axis(
                     pred_boxes3d[..., 0:3].unsqueeze(1),
