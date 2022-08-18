@@ -108,15 +108,15 @@ class PVRCNNBboxHead(BaseModule):
         pre_channel = in_channels
         for k, fck in enumerate(fc):
             fc_layers.extend([
-                # nn.Conv1d(pre_channel, fck, 1, bias=False),
-                ConvModule(
-                    pre_channel,
-                    fck,
-                    kernel_size=1,
-                    stride=1,
-                    inplace=False,
-                    bias=False,
-                    conv_cfg=dict(type='Conv1d')),
+                nn.Conv1d(pre_channel, fck, 1, bias=False),
+                # ConvModule(
+                #     pre_channel,
+                #     fck,
+                #     kernel_size=1,
+                #     stride=1,
+                #     inplace=False,
+                #     bias=False,
+                #     conv_cfg=dict(type='Conv1d')),
                 build_norm_layer(self.norm_cfg, fck)[1],
                 nn.ReLU()
             ])
@@ -181,9 +181,9 @@ class PVRCNNBboxHead(BaseModule):
         pos_inds = (reg_mask > 0)
         if pos_inds.any() == 0:
             # fake a part loss
-            losses['loss_bbox'] = loss_cls.new_tensor(0)
+            losses['loss_bbox'] = 0 * bbox_pred.sum()
             if self.with_corner_loss:
-                losses['loss_corner'] = loss_cls.new_tensor(0)
+                losses['loss_corner'] =  0 * bbox_pred.sum()
         else:
             pos_bbox_pred = bbox_pred.view(rcnn_batch_size, -1)[pos_inds]
             bbox_weights_flat = bbox_weights[pos_inds].view(-1, 1).repeat(
