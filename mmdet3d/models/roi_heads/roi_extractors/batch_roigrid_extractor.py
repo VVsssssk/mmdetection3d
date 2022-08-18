@@ -25,12 +25,12 @@ class Batch3DRoIGridExtractor(BaseModule):
             points_xyz=coordinate[:, :, :3].contiguous(),  # B, N, 3
             target_xyz=grid_points,  #B, M, 3
             features=feats.transpose(1, 2).contiguous())  # B, C, N
-
-        pooled_features = pooled_features.transpose(1, 2)
+        # B, M , C
+        pooled_features = pooled_features.transpose(1, 2).contiguous()
         pooled_features = pooled_features.view(-1, self.grid_size,
                                                self.grid_size, self.grid_size,
                                                pooled_features.shape[-1])
-        # (BxN, 6, 6, 6, C)
+        # (B , 6, 6, 6, C)
         # import torch
         # pooled_features = torch.load('pooled_features.pkl').view(-1,self.grid_size,
         #                                        self.grid_size, self.grid_size,
