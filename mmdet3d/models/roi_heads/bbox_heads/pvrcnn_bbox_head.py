@@ -2,8 +2,8 @@
 import numpy as np
 import torch
 from mmcv.cnn.bricks import build_norm_layer
-from mmcv.runner import BaseModule
 from mmengine.data import InstanceData
+from mmengine.model import BaseModule
 from torch import nn as nn
 
 from mmdet3d.models.builder import build_loss

@@ -1,5 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from mmcv.runner import BaseModule
+from mmengine.model import BaseModule
 
 from mmdet3d.models.layers.pointnet_modules import build_sa_module
 from mmdet3d.registry import MODELS
