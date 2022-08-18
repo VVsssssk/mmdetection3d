@@ -5,7 +5,7 @@ from mmcv.cnn.bricks import build_norm_layer
 from mmengine.data import InstanceData
 from mmengine.model import BaseModule
 from torch import nn as nn
-
+from mmcv.cnn import ConvModule
 from mmdet3d.models.builder import build_loss
 from mmdet3d.models.layers import nms_bev, nms_normal_bev
 from mmdet3d.registry import MODELS, TASK_UTILS
@@ -108,7 +108,15 @@ class PVRCNNBboxHead(BaseModule):
         pre_channel = in_channels
         for k, fck in enumerate(fc):
             fc_layers.extend([
-                nn.Conv1d(pre_channel, fck, 1, bias=False),
+                # nn.Conv1d(pre_channel, fck, 1, bias=False),
+                ConvModule(
+                    pre_channel,
+                    fck,
+                    kernel_size=1,
+                    stride=1,
+                    inplace=False,
+                    bias=False,
+                    conv_cfg=dict(type='Conv1d')),
                 build_norm_layer(self.norm_cfg, fck)[1],
                 nn.ReLU()
             ])
