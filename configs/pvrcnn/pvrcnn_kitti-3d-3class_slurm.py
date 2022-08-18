@@ -159,7 +159,7 @@ model = dict(
         diff_rad_by_sin=True,
         assigner_per_size=True,
         assign_per_class=True,
-        bbox_coder=dict(type='PVRCNNBoxCoder', bottom_center=False),
+        bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
         loss_cls=dict(
             type='mmdet.FocalLoss',
             use_sigmoid=True,
@@ -206,7 +206,7 @@ model = dict(
             cls_fc=(256, 256),
             dropout=0.3,
             with_corner_loss=True,
-            bbox_coder=dict(type='PVRCNNBoxCoder', bottom_center=True),
+            bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
             loss_bbox=dict(
                 type='mmdet.SmoothL1Loss',
                 beta=1.0 / 9.0,

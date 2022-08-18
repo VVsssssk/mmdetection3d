@@ -55,7 +55,7 @@ class DeltaXYZWLHRBBoxCoder(BaseBBoxCoder):
         return torch.cat([xt, yt, zt, wt, lt, ht, rt, *cts], dim=-1)
 
     @staticmethod
-    def decode(anchors, deltas):
+    def decode(anchors, deltas, *args, **kwargs):
         """Apply transformation `deltas` (dx, dy, dz, dx_size, dy_size,
         dz_size, dr, dv*) to `boxes`.
 
