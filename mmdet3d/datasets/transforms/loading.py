@@ -182,7 +182,7 @@ class LoadPointsFromMultiSweeps(BaseTransform):
             pts_bytes = self.file_client.get(pts_filename)
             points = np.frombuffer(pts_bytes, dtype=np.float32)
         except ConnectionError:
-            mmcv.check_file_exist(pts_filename)
+            mmengine.check_file_exist(pts_filename)
             if pts_filename.endswith('.npy'):
                 points = np.load(pts_filename)
             else:
@@ -255,9 +255,10 @@ class LoadPointsFromMultiSweeps(BaseTransform):
                     points_sweep = self._remove_close(points_sweep)
                 # bc-breaking: Timestamp has divided 1e6 in pkl infos.
                 sweep_ts = sweep['timestamp']
-                lidar2cam = np.array(sweep['lidar_points']['lidar2sensor'])
-                points_sweep[:, :3] = points_sweep[:, :3] @ lidar2cam[:3, :3]
-                points_sweep[:, :3] -= lidar2cam[:3, 3]
+                lidar2sensor = np.array(sweep['lidar_points']['lidar2sensor'])
+                points_sweep[:, :
+                             3] = points_sweep[:, :3] @ lidar2sensor[:3, :3]
+                points_sweep[:, :3] -= lidar2sensor[:3, 3]
                 points_sweep[:, 4] = ts - sweep_ts
                 points_sweep = points.new_point(points_sweep)
                 sweep_points_list.append(points_sweep)
@@ -454,7 +455,7 @@ class LoadPointsFromFile(BaseTransform):
             pts_bytes = self.file_client.get(pts_filename)
             points = np.frombuffer(pts_bytes, dtype=np.float32)
         except ConnectionError:
-            mmcv.check_file_exist(pts_filename)
+            mmengine.check_file_exist(pts_filename)
             if pts_filename.endswith('.npy'):
                 points = np.load(pts_filename)
             else:
@@ -710,7 +711,7 @@ class LoadAnnotations3D(LoadAnnotations):
             mask_bytes = self.file_client.get(pts_instance_mask_path)
             pts_instance_mask = np.frombuffer(mask_bytes, dtype=np.int64)
         except ConnectionError:
-            mmcv.check_file_exist(pts_instance_mask_path)
+            mmengine.check_file_exist(pts_instance_mask_path)
             pts_instance_mask = np.fromfile(
                 pts_instance_mask_path, dtype=np.int64)
 
@@ -739,7 +740,7 @@ class LoadAnnotations3D(LoadAnnotations):
             pts_semantic_mask = np.frombuffer(
                 mask_bytes, dtype=self.seg_3d_dtype).copy()
         except ConnectionError:
-            mmcv.check_file_exist(pts_semantic_mask_path)
+            mmengine.check_file_exist(pts_semantic_mask_path)
             pts_semantic_mask = np.fromfile(
                 pts_semantic_mask_path, dtype=np.int64)
 
@@ -760,17 +761,8 @@ class LoadAnnotations3D(LoadAnnotations):
         Returns:
             dict: The dict contains loaded bounding box annotations.
         """
-        gt_bboxes = []
-        for instance in results['instances']:
-            gt_bboxes.append(instance['bbox'])
-        if len(gt_bboxes) == 0:
-            results['gt_bboxes'] = np.zeros((0, 4), dtype=np.float32)
-        else:
-            results['gt_bboxes'] = np.array(
-                gt_bboxes, dtype=np.float32).reshape((-1, 4))
 
-        if 'eval_ann_info' in results:
-            results['eval_ann_info']['gt_bboxes'] = results['gt_bboxes']
+        results['gt_bboxes'] = results['ann_info']['gt_bboxes']
 
     def _load_labels(self, results: dict) -> None:
         """Private function to load label annotations.
@@ -781,17 +773,7 @@ class LoadAnnotations3D(LoadAnnotations):
         Returns:
             dict: The dict contains loaded label annotations.
         """
-        gt_bboxes_labels = []
-        for instance in results['instances']:
-            gt_bboxes_labels.append(instance['bbox_label'])
-        if len(gt_bboxes_labels) == 0:
-            results['gt_bboxes_labels'] = np.zeros((0, ), dtype=np.int64)
-        else:
-            results['gt_bboxes_labels'] = np.array(
-                gt_bboxes_labels, dtype=np.int64)
-        if 'eval_ann_info' in results:
-            results['eval_ann_info']['gt_bboxes_labels'] = results[
-                'gt_bboxes_labels']
+        results['gt_bboxes_labels'] = results['ann_info']['gt_bboxes_labels']
 
     def transform(self, results: dict) -> dict:
         """Function to load multiple types annotations.
