@@ -14,6 +14,41 @@ from mmdet3d.registry import MODELS
 from mmdet3d.structures.det3d_data_sample import InstanceData
 
 
+def bilinear_interpolate_torch(im, x, y):
+    """Bilinear interpolate for.
+
+    Args:
+        im: (H, W, C) [y, x]
+        x: (N)
+        y: (N)
+
+    Returns:
+    """
+    x0 = torch.floor(x).long()
+    x1 = x0 + 1
+
+    y0 = torch.floor(y).long()
+    y1 = y0 + 1
+
+    x0 = torch.clamp(x0, 0, im.shape[1] - 1)
+    x1 = torch.clamp(x1, 0, im.shape[1] - 1)
+    y0 = torch.clamp(y0, 0, im.shape[0] - 1)
+    y1 = torch.clamp(y1, 0, im.shape[0] - 1)
+
+    Ia = im[y0, x0]
+    Ib = im[y1, x0]
+    Ic = im[y0, x1]
+    Id = im[y1, x1]
+
+    wa = (x1.type_as(x) - x) * (y1.type_as(y) - y)
+    wb = (x1.type_as(x) - x) * (y - y0.type_as(y))
+    wc = (x - x0.type_as(x)) * (y1.type_as(y) - y)
+    wd = (x - x0.type_as(x)) * (y - y0.type_as(y))
+    ans = torch.t((torch.t(Ia) * wa)) + torch.t(torch.t(Ib) * wb) + torch.t(
+        torch.t(Ic) * wc) + torch.t(torch.t(Id) * wd)
+    return ans
+
+
 @MODELS.register_module()
 class VoxelSetAbstraction(BaseModule):
     """Voxel set abstraction module for PVRCNN and PVRCNN++.
@@ -92,42 +127,74 @@ class VoxelSetAbstraction(BaseModule):
             nn.Linear(in_channels, fused_out_channels, bias=False),
             build_norm_layer(norm_cfg, fused_out_channels)[1], nn.ReLU())
 
-    def interpolate_from_bev_features(self, keypoints: Tensor,
-                                      bev_features: Tensor,
-                                      scale_factor: int) -> Tensor:
-        """Interpolate from Bev features by key points.
+    # def interpolate_from_bev_features(self, keypoints: Tensor,
+    #                                   bev_features: Tensor,
+    #                                   scale_factor: int) -> Tensor:
+    #     """Interpolate from Bev features by key points.
+    #
+    #     Args:
+    #         keypoints (torch.Tensor): Sampled key points from raw points,
+    #             shape is (B,N,3)，where N is key points num.
+    #         bev_features (torch.Tensor): Bev features, shape is (B,H,W,C).
+    #         scale_factor (int): Down sample scale factor.
+    #
+    #     Returns:
+    #         torch.Tensor: Key points Bev features.
+    #     """
+    #     # TODO: Here is different from OpenPCDet in inference,
+    #     # but I think it doesn't influence trained model accuracy.
+    #     _, _, y_grid, x_grid = bev_features.shape
+    #
+    #     voxel_size_xy = keypoints.new_tensor(self.voxel_size[:2])
+    #
+    #     # top-left coors in bev view
+    #     bev_tl_grid_cxy = keypoints.new_tensor(self.point_cloud_range[:2])
+    #     # below-right coors in bev view
+    #     bev_br_grid_cxy = keypoints.new_tensor(self.point_cloud_range[3:5])
+    #     bev_tl_grid_cxy.add_(0.5 * voxel_size_xy * scale_factor)
+    #     bev_br_grid_cxy.sub_(0.5 * voxel_size_xy * scale_factor)
+    #
+    #     xy = keypoints[..., :2]
+    #
+    #     grid_sample_xy = (xy - bev_tl_grid_cxy[None, None, :]) / (
+    #         (bev_br_grid_cxy - bev_tl_grid_cxy)[None, None, :])
+    #
+    #     grid_sample_xy = (grid_sample_xy * 2 - 1).unsqueeze(1)
+    #     point_bev_features = F.grid_sample(
+    #         bev_features, grid=grid_sample_xy, align_corners=True)
+    #     return point_bev_features.squeeze(2).permute(0, 2, 1).contiguous()
+
+    def interpolate_from_bev_features(self, keypoints, bev_features,
+                                      scale_factor):
+        """
 
         Args:
-            keypoints (torch.Tensor): Sampled key points from raw points,
-                shape is (B,N,3)，where N is key points num.
-            bev_features (torch.Tensor): Bev features, shape is (B,H,W,C).
-            scale_factor (int): Down sample scale factor.
+            keypoints:
+            bev_features:
+            scale_factor:
 
         Returns:
-            torch.Tensor: Key points Bev features.
+
         """
-        # TODO: Here is different from OpenPCDet in inference,
-        # but I think it doesn't influence trained model accuracy.
-        _, _, y_grid, x_grid = bev_features.shape
+        point_bev_features_list = []
+        batch_size = bev_features.shape[0]
+        for k in range(batch_size):
+            cur_x_idxs = (keypoints[k, :, 0] -
+                          self.point_cloud_range[0]) / self.voxel_size[0]
+            cur_y_idxs = (keypoints[k, :, 1] -
+                          self.point_cloud_range[1]) / self.voxel_size[1]
 
-        voxel_size_xy = keypoints.new_tensor(self.voxel_size[:2])
+            cur_x_idxs = cur_x_idxs / scale_factor
+            cur_y_idxs = cur_y_idxs / scale_factor
 
-        # top-left coors in bev view
-        bev_tl_grid_cxy = keypoints.new_tensor(self.point_cloud_range[:2])
-        # below-right coors in bev view
-        bev_br_grid_cxy = keypoints.new_tensor(self.point_cloud_range[3:5])
-        bev_tl_grid_cxy.add_(0.5 * voxel_size_xy * scale_factor)
-        bev_br_grid_cxy.sub_(0.5 * voxel_size_xy * scale_factor)
+            cur_bev_features = bev_features[k].permute(1, 2, 0)  # (H, W, C)
+            point_bev_features = bilinear_interpolate_torch(
+                cur_bev_features, cur_x_idxs, cur_y_idxs)
+            point_bev_features_list.append(point_bev_features)
 
-        xy = keypoints[..., :2]
-
-        grid_sample_xy = (xy - bev_tl_grid_cxy[None, None, :]) / (
-            (bev_br_grid_cxy - bev_tl_grid_cxy)[None, None, :])
-
-        grid_sample_xy = (grid_sample_xy * 2 - 1).unsqueeze(1)
-        point_bev_features = F.grid_sample(
-            bev_features, grid=grid_sample_xy, align_corners=True)
-        return point_bev_features.squeeze(2).permute(0, 2, 1).contiguous()
+        point_bev_features = torch.stack(
+            point_bev_features_list, dim=0)  # (N1 + N2 + ..., C)
+        return point_bev_features
 
     def aggregate_keypoint_features(
             self,
@@ -278,6 +345,9 @@ class VoxelSetAbstraction(BaseModule):
             cur_coords = feats_dict['multi_scale_3d_feats'][i].indices
             cur_feats = feats_dict['multi_scale_3d_feats'][
                 i].features.contiguous()
+            # feat_dict = torch.load('/home/PJLAB/shenkun/workspace/OpenPCDet/tools/feats.pkl')
+            # cur_coords = feat_dict['cur_coords']
+            # cur_feats = feat_dict['cur_features']
             batch_voxel_centers, batch_voxel_num = self.get_voxel_centers(
                 coors=cur_coords, scale_factor=self.downsample_scale_factor[i])
             batch_cur_feats = self.padded_batch_points(

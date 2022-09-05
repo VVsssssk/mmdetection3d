@@ -143,16 +143,19 @@ model = dict(
         in_channels=512,
         feat_channels=512,
         use_direction_classifier=True,
-        dir_offset=0.78539,
+        # dir_offset=0.78539,
         anchor_generator=dict(
             type='Anchor3DRangeGenerator',
             # ranges=[[0, -40.0, -1, 70.4, 40.0, -1],
             #         [0, -40.0, 0.265, 70.4, 40.0, 0.265],
             #         [0, -40.0, 0.265, 70.4, 40.0, 0.265]],
             # sizes=[[3.9, 1.6, 1.56], [0.8, 0.6, 1.73], [1.76, 0.6, 1.73]],
-            ranges=[[0, -40.0, 0.265, 70.4, 40.0, 0.265],
-                    [0, -40.0, 0.265, 70.4, 40.0, 0.265],
-                    [0, -40.0, -1, 70.4, 40.0, -1]],
+            # ranges=[[0, -40.0, 0.265, 70.4, 40.0, 0.265],
+            #         [0, -40.0, 0.265, 70.4, 40.0, 0.265],
+            #         [0, -40.0, -1, 70.4, 40.0, -1]],
+            ranges=[[0.2, -39.8, -0.6, 70.2, 39.8, -0.6],
+                    [0.2, -39.8, -0.6, 70.2, 39.8, -0.6],
+                    [0.2, -39.8, -1.78, 70.2, 39.8, -1.78]],
             sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
             rotations=[0, 1.57],
             reshape_out=False),
@@ -200,7 +203,7 @@ model = dict(
             type='PVRCNNBboxHead',
             in_channels=128,
             grid_size=6,
-            num_classes=6,
+            num_classes=3,
             class_agnostic=True,
             reg_fc=(256, 256),
             cls_fc=(256, 256),
@@ -310,7 +313,6 @@ train_dataloader = dict(
     dataset=dict(dataset=dict(pipeline=train_pipeline)))
 test_dataloader = dict(dataset=dict(pipeline=test_pipeline))
 
-randomness = dict(seed=666, deterministic=True)
 lr = 0.001
 optim_wrapper = dict(optimizer=dict(lr=lr))
 param_scheduler = [

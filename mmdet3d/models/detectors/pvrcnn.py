@@ -70,8 +70,10 @@ class PointVoxelRCNN(TwoStage3DDetector):
                 - bboxes_3d (Tensor): Contains a tensor with shape
                     (num_instances, C) where C >=7.
         """
+        # import torch
+        # pc_input_dict = torch.load('pc_input_dict.pkl')
+        # batch_inputs_dict['points'][0] = pc_input_dict['points'][:,1:].contiguous()
         feats_dict = self.extract_feat(batch_inputs_dict)
-
         if self.with_rpn:
             rpn_results_list = self.rpn_head.predict(feats_dict,
                                                      batch_data_samples)

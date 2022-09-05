@@ -15,18 +15,20 @@ class Batch3DRoIGridExtractor(BaseModule):
         self.grid_size = grid_size
 
     def forward(self, feats, coordinate, rois):
-
         roi_grid = self.get_dense_grid_points(rois[:, 1:])
         batch_size = coordinate.shape[0]
         grid_points = roi_grid.reshape(batch_size, -1, 3)
         feats = feats.view(batch_size, -1, feats.shape[-1])
-
+        # import torch
+        # feats = torch.load('point_features.pkl')
         _, pooled_features, _ = self.roi_grid_pool_layer(
             points_xyz=coordinate[:, :, :3].contiguous(),  # B, N, 3
             target_xyz=grid_points,  #B, M, 3
             features=feats.transpose(1, 2).contiguous())  # B, C, N
         # B, M , C
         pooled_features = pooled_features.transpose(1, 2).contiguous()
+        # import torch
+        # pooled_features = torch.load('/home/PJLAB/shenkun/openmmlab-refactor/mmdetection3d/pooled_features.pkl')
         pooled_features = pooled_features.view(-1, self.grid_size,
                                                self.grid_size, self.grid_size,
                                                pooled_features.shape[-1])

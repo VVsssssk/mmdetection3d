@@ -1,11 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import numpy as np
 import torch
+from mmcv.cnn import ConvModule
 from mmcv.cnn.bricks import build_norm_layer
 from mmengine.data import InstanceData
 from mmengine.model import BaseModule
 from torch import nn as nn
-from mmcv.cnn import ConvModule
+
 from mmdet3d.models.builder import build_loss
 from mmdet3d.models.layers import nms_bev, nms_normal_bev
 from mmdet3d.registry import MODELS, TASK_UTILS
@@ -109,14 +110,6 @@ class PVRCNNBboxHead(BaseModule):
         for k, fck in enumerate(fc):
             fc_layers.extend([
                 nn.Conv1d(pre_channel, fck, 1, bias=False),
-                # ConvModule(
-                #     pre_channel,
-                #     fck,
-                #     kernel_size=1,
-                #     stride=1,
-                #     inplace=False,
-                #     bias=False,
-                #     conv_cfg=dict(type='Conv1d')),
                 build_norm_layer(self.norm_cfg, fck)[1],
                 nn.ReLU()
             ])
@@ -183,7 +176,7 @@ class PVRCNNBboxHead(BaseModule):
             # fake a part loss
             losses['loss_bbox'] = 0 * bbox_pred.sum()
             if self.with_corner_loss:
-                losses['loss_corner'] =  0 * bbox_pred.sum()
+                losses['loss_corner'] = 0 * bbox_pred.sum()
         else:
             pos_bbox_pred = bbox_pred.view(rcnn_batch_size, -1)[pos_inds]
             bbox_weights_flat = bbox_weights[pos_inds].view(-1, 1).repeat(
@@ -203,7 +196,8 @@ class PVRCNNBboxHead(BaseModule):
                 # decode boxes
                 pred_boxes3d = self.bbox_coder.decode(
                     batch_anchors,
-                    pos_bbox_pred.view(-1, code_size),bottom_center=True).view(-1, code_size)
+                    pos_bbox_pred.view(-1, code_size),
+                    bottom_center=True).view(-1, code_size)
 
                 pred_boxes3d[..., 0:3] = rotation_3d_in_axis(
                     pred_boxes3d[..., 0:3].unsqueeze(1),
@@ -419,8 +413,8 @@ class PVRCNNBboxHead(BaseModule):
             selected_label_preds = cur_class_labels[selected]
             selected_scores = cls_scores[selected]
 
-            # selected_label_preds -= 1
-            # selected_label_preds[selected_label_preds == -1] = 2
+            selected_label_preds -= 1
+            selected_label_preds[selected_label_preds == -1] = 2
             results = InstanceData()
             results.bboxes_3d = img_metas[batch_id]['box_type_3d'](
                 selected_bboxes, self.bbox_coder.code_size)
@@ -428,6 +422,7 @@ class PVRCNNBboxHead(BaseModule):
             results.labels_3d = selected_label_preds
 
             result_list.append(results)
+        print(result_list)
         return result_list
 
     def class_agnostic_nms(self, obj_scores, bbox, cfg, input_meta):

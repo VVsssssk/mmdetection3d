@@ -39,21 +39,21 @@ train_pipeline = [
 ]
 test_pipeline = [
     dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4),
-    dict(
-        type='MultiScaleFlipAug3D',
-        img_scale=(1333, 800),
-        pts_scale_ratio=1,
-        flip=False,
-        transforms=[
-            dict(
-                type='GlobalRotScaleTrans',
-                rot_range=[0, 0],
-                scale_ratio_range=[1., 1.],
-                translation_std=[0, 0, 0]),
-            dict(type='RandomFlip3D'),
-            dict(
-                type='PointsRangeFilter', point_cloud_range=point_cloud_range)
-        ]),
+    # dict(
+    #     type='MultiScaleFlipAug3D',
+    #     img_scale=(1333, 800),
+    #     pts_scale_ratio=1,
+    #     flip=False,
+    #     transforms=[
+    #         dict(
+    #             type='GlobalRotScaleTrans',
+    #             rot_range=[0, 0],
+    #             scale_ratio_range=[1., 1.],
+    #             translation_std=[0, 0, 0]),
+    #         dict(type='RandomFlip3D'),
+    #         dict(
+    #             type='PointsRangeFilter', point_cloud_range=point_cloud_range)
+    #     ]),
     dict(type='Pack3DDetInputs', keys=['points'])
 ]
 
@@ -72,6 +72,8 @@ model = dict(
         in_channels=4,
         sparse_shape=[41, 1600, 1408],
         order=('conv', 'norm', 'act'),
+        encoder_paddings=((0, 0, 0), ((1, 1, 1), 0, 0), ((1, 1, 1), 0, 0),
+                          ((0, 1, 1), 0, 0)),
         mlvl_outputs=True),
     keypoints_encoder=dict(
         type='VoxelSetAbstraction',
@@ -305,7 +307,7 @@ model = dict(
             nms_thr=0.1,
             score_thr=0.1)))
 train_dataloader = dict(
-    batch_size=1,
+    batch_size=2,
     num_workers=1,
     dataset=dict(dataset=dict(pipeline=train_pipeline)))
 test_dataloader = dict(dataset=dict(pipeline=test_pipeline))
