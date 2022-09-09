@@ -86,12 +86,13 @@ class PointVoxelRCNN(TwoStage3DDetector):
                                                      feats_dict,
                                                      rpn_results_list)
 
-        results_list = self.roi_head.predict(points_feats_dict,
-                                             rpn_results_list,
-                                             batch_data_samples)
+        results_list_3d = self.roi_head.predict(points_feats_dict,
+                                                rpn_results_list,
+                                                batch_data_samples)
 
         # connvert to Det3DDataSample
-        results_list = self.convert_to_datasample(results_list)
+        results_list = self.convert_to_datasample(batch_data_samples,
+                                                  results_list_3d)
 
         return results_list
 

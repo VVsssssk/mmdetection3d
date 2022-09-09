@@ -3,8 +3,8 @@ import numpy as np
 import torch
 from mmcv.cnn import ConvModule
 from mmcv.cnn.bricks import build_norm_layer
-from mmengine.data import InstanceData
 from mmengine.model import BaseModule
+from mmengine.structures import InstanceData
 from torch import nn as nn
 
 from mmdet3d.models.builder import build_loss
@@ -422,7 +422,6 @@ class PVRCNNBboxHead(BaseModule):
             results.labels_3d = selected_label_preds
 
             result_list.append(results)
-        print(result_list)
         return result_list
 
     def class_agnostic_nms(self, obj_scores, bbox, cfg, input_meta):
