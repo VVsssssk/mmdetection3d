@@ -39,21 +39,21 @@ train_pipeline = [
 ]
 test_pipeline = [
     dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4),
-    # dict(
-    #     type='MultiScaleFlipAug3D',
-    #     img_scale=(1333, 800),
-    #     pts_scale_ratio=1,
-    #     flip=False,
-    #     transforms=[
-    #         dict(
-    #             type='GlobalRotScaleTrans',
-    #             rot_range=[0, 0],
-    #             scale_ratio_range=[1., 1.],
-    #             translation_std=[0, 0, 0]),
-    #         dict(type='RandomFlip3D'),
-    #         dict(
-    #             type='PointsRangeFilter', point_cloud_range=point_cloud_range)
-    #     ]),
+    dict(
+        type='MultiScaleFlipAug3D',
+        img_scale=(1333, 800),
+        pts_scale_ratio=1,
+        flip=False,
+        transforms=[
+            dict(
+                type='GlobalRotScaleTrans',
+                rot_range=[0, 0],
+                scale_ratio_range=[1., 1.],
+                translation_std=[0, 0, 0]),
+            dict(type='RandomFlip3D'),
+            dict(
+                type='PointsRangeFilter', point_cloud_range=point_cloud_range)
+        ]),
     dict(type='Pack3DDetInputs', keys=['points'])
 ]
 
@@ -77,56 +77,22 @@ model = dict(
         mlvl_outputs=True),
     keypoints_encoder=dict(
         type='VoxelSetAbstraction',
+        num_keypoints=2048,
+        out_channels=128,
         voxel_size=voxel_size,
         point_cloud_range=point_cloud_range,
-        keypoints_sampler=dict(
-            fps_mod_list=['D-FPS'],
-            num_point=[2048],
-            fps_sample_range_list=[-1]),
-        sample_mode='raw_points',
-        rawpoint_sa_cfg=dict(
-            type='PointSAModuleMSG',
-            num_point=None,
-            use_xyz=True,
-            radii=(0.4, 0.8),
-            sample_nums=(16, 16),
-            mlp_channels=((1, 16, 16), (1, 16, 16))),
-        voxel_sa_cfg_list=[
-            dict(
-                scale_factor=1,
-                type='PointSAModuleMSG',
-                use_xyz=True,
-                num_point=None,
-                radii=(0.4, 0.8),
-                sample_nums=(16, 16),
-                mlp_channels=((16, 16, 16), (16, 16, 16))),
-            dict(
-                scale_factor=2,
-                type='PointSAModuleMSG',
-                use_xyz=True,
-                num_point=None,
-                radii=(0.8, 1.2),
-                sample_nums=(16, 32),
-                mlp_channels=((32, 32, 32), (32, 32, 32))),
-            dict(
-                scale_factor=4,
-                type='PointSAModuleMSG',
-                use_xyz=True,
-                num_point=None,
-                radii=(1.2, 2.4),
-                sample_nums=(16, 32),
-                mlp_channels=((64, 64, 64), (64, 64, 64))),
-            dict(
-                scale_factor=8,
-                type='PointSAModuleMSG',
-                use_xyz=True,
-                num_point=None,
-                radii=(2.4, 4.8),
-                sample_nums=(16, 32),
-                mlp_channels=((64, 64, 64), (64, 64, 64)))
-        ],
-        bev_cfg=dict(scale_factor=8, in_channels=256),
-        fused_out_channels=128,
+        voxel_sa_configs=[
+            dict(scale_factor=1, in_channels=16, pool_radius=(0.4, 0.8),
+                 samples=(16, 16), mlps=((16, 16), (16, 16))),
+            dict(scale_factor=2, in_channels=32, pool_radius=(0.8, 1.2),
+                 samples=(16, 32), mlps=((32, 32), (32, 32))),
+            dict(scale_factor=4, in_channels=64, pool_radius=(1.2, 2.4),
+                 samples=(16, 32), mlps=((64, 64), (64, 64))),
+            dict(scale_factor=8, in_channels=64, pool_radius=(2.4, 4.8),
+                 samples=(16, 32), mlps=((64, 64), (64, 64)))],
+        rawpoint_sa_config=dict(in_channels=1, pool_radius=(0.4, 0.8),
+                                samples=(16, 16), mlps=((16, 16), (16, 16))),
+        bev_sa_config=dict(scale_factor=8, in_channels=256),
     ),
     backbone=dict(
         type='SECOND',
@@ -145,23 +111,23 @@ model = dict(
         in_channels=512,
         feat_channels=512,
         use_direction_classifier=True,
-        dir_offset=0.78539,
+        # dir_offset=0.78539,
         anchor_generator=dict(
             type='Anchor3DRangeGenerator',
-            ranges=[[0, -40.0, -1, 70.4, 40.0, -1],
-                    [0, -40.0, 0.265, 70.4, 40.0, 0.265],
-                    [0, -40.0, 0.265, 70.4, 40.0, 0.265]],
-            sizes=[[3.9, 1.6, 1.56], [0.8, 0.6, 1.73], [1.76, 0.6, 1.73]],
-            # ranges=[[0, -40.0, 0.265, 70.4, 40.0, 0.265],
+            # ranges=[[0, -40.0, -1, 70.4, 40.0, -1],
             #         [0, -40.0, 0.265, 70.4, 40.0, 0.265],
-            #         [0, -40.0, -1, 70.4, 40.0, -1]],
-            # sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
+            #         [0, -40.0, 0.265, 70.4, 40.0, 0.265]],
+            # sizes=[[3.9, 1.6, 1.56], [0.8, 0.6, 1.73], [1.76, 0.6, 1.73]],
+            ranges=[[0.2, -39.8, -0.6, 70.2, 39.8, -0.6],
+                    [0.2, -39.8, -0.6, 70.2, 39.8, -0.6],
+                    [0.2, -39.8, -1.78, 70.2, 39.8, -1.78]],
+            sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
             rotations=[0, 1.57],
             reshape_out=False),
         diff_rad_by_sin=True,
         assigner_per_size=True,
         assign_per_class=True,
-        bbox_coder=dict(type='PVRCNNBoxCoder', bottom_center=False),
+        bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
         loss_cls=dict(
             type='mmdet.FocalLoss',
             use_sigmoid=True,
@@ -190,25 +156,23 @@ model = dict(
                 loss_weight=1.0)),
         bbox_roi_extractor=dict(
             type='Batch3DRoIGridExtractor',
-            sa_module_cfg=dict(
-                type='PointSAModuleMSG',
-                num_point=None,
-                radii=(0.8, 1.6),
-                sample_nums=(16, 16),
-                mlp_channels=((128, 64, 64), (128, 64, 64)),
-                pool_mod='max'),
-            grid_size=6),
+            in_channels=128,
+            pool_radius=(0.8, 1.6),
+            samples=(16, 16),
+            mlps=((64, 64), (64, 64)),
+            grid_size=6,
+            mode='max'),
         bbox_head=dict(
             type='PVRCNNBboxHead',
             in_channels=128,
             grid_size=6,
-            num_classes=6,
+            num_classes=3,
             class_agnostic=True,
             reg_fc=(256, 256),
             cls_fc=(256, 256),
             dropout=0.3,
             with_corner_loss=True,
-            bbox_coder=dict(type='PVRCNNBoxCoder', bottom_center=True),
+            bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
             loss_bbox=dict(
                 type='mmdet.SmoothL1Loss',
                 beta=1.0 / 9.0,
@@ -308,44 +272,44 @@ model = dict(
             score_thr=0.1)))
 train_dataloader = dict(
     batch_size=2,
-    num_workers=1,
+    num_workers=2,
     dataset=dict(dataset=dict(pipeline=train_pipeline)))
 test_dataloader = dict(dataset=dict(pipeline=test_pipeline))
 
-randomness = dict(seed=666, deterministic=True)
 lr = 0.001
+train_cfg = dict(max_epochs=80)
 optim_wrapper = dict(optimizer=dict(lr=lr))
 param_scheduler = [
     dict(
         type='CosineAnnealingLR',
-        T_max=16,
+        T_max=35,
         eta_min=lr * 10,
         begin=0,
-        end=16,
+        end=35,
         by_epoch=True,
         convert_to_iter_based=True),
     dict(
         type='CosineAnnealingLR',
-        T_max=24,
+        T_max=45,
         eta_min=lr * 1e-4,
-        begin=16,
-        end=40,
+        begin=35,
+        end=80,
         by_epoch=True,
         convert_to_iter_based=True),
     dict(
         type='CosineAnnealingMomentum',
-        T_max=16,
+        T_max=35,
         eta_min=0.85 / 0.95,
         begin=0,
-        end=16,
+        end=35,
         by_epoch=True,
         convert_to_iter_based=True),
     dict(
         type='CosineAnnealingMomentum',
-        T_max=24,
+        T_max=45,
         eta_min=1,
-        begin=16,
-        end=40,
+        begin=35,
+        end=45,
         by_epoch=True,
         convert_to_iter_based=True)
 ]

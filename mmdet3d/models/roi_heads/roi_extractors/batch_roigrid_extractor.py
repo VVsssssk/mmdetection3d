@@ -4,39 +4,52 @@ from mmengine.model import BaseModule
 from mmdet3d.models.layers.pointnet_modules import build_sa_module
 from mmdet3d.registry import MODELS
 from mmdet3d.structures.bbox_3d import rotation_3d_in_axis
-
+from mmdet3d.models.layers.pointnet_modules.pointnet2_modules import GuidedSAModuleMSG
 
 @MODELS.register_module()
 class Batch3DRoIGridExtractor(BaseModule):
-
-    def __init__(self, sa_module_cfg, grid_size=6, init_cfg=None):
+    def __init__(self, in_channels, pool_radius, samples, mlps, grid_size=6,
+                 norm_cfg=dict(type='BN2d', eps=1e-5, momentum=0.01),
+                 mode='max', init_cfg=None):
         super(Batch3DRoIGridExtractor, self).__init__(init_cfg=init_cfg)
-        self.roi_grid_pool_layer = build_sa_module(sa_module_cfg)
+        self.roi_grid_pool_layer = GuidedSAModuleMSG(
+            in_channels=in_channels,
+            radii=pool_radius,
+            nsamples=samples,
+            mlps=mlps,
+            use_xyz=True,
+            pool_method=mode,
+            norm_cfg=norm_cfg)
         self.grid_size = grid_size
 
-    def forward(self, feats, coordinate, rois):
+    def forward(self, feats, coordinate, batch_inds, rois):
+        batch_size = int(batch_inds.max()) + 1
+
+        xyz = coordinate
+        xyz_batch_cnt = xyz.new_zeros(batch_size).int()
+        for k in range(batch_size):
+            xyz_batch_cnt[k] = (batch_inds == k).sum()
+
+        rois_batch_inds = rois[:, 0].int()
+        # (N1+N2+..., 6x6x6, 3)
         roi_grid = self.get_dense_grid_points(rois[:, 1:])
-        batch_size = coordinate.shape[0]
-        grid_points = roi_grid.reshape(batch_size, -1, 3)
-        feats = feats.view(batch_size, -1, feats.shape[-1])
-        # import torch
-        # feats = torch.load('point_features.pkl')
-        _, pooled_features, _ = self.roi_grid_pool_layer(
-            points_xyz=coordinate[:, :, :3].contiguous(),  # B, N, 3
-            target_xyz=grid_points,  #B, M, 3
-            features=feats.transpose(1, 2).contiguous())  # B, C, N
-        # B, M , C
-        pooled_features = pooled_features.transpose(1, 2).contiguous()
-        # import torch
-        # pooled_features = torch.load('/home/PJLAB/shenkun/openmmlab-refactor/mmdetection3d/pooled_features.pkl')
-        pooled_features = pooled_features.view(-1, self.grid_size,
-                                               self.grid_size, self.grid_size,
-                                               pooled_features.shape[-1])
-        # (B , 6, 6, 6, C)
-        # import torch
-        # pooled_features = torch.load('pooled_features.pkl').view(-1,self.grid_size,
-        #                                        self.grid_size, self.grid_size,
-        #                                        pooled_features.shape[-1])
+
+        new_xyz = roi_grid.view(-1, 3)
+        new_xyz_batch_cnt = new_xyz.new_zeros(batch_size).int()
+        for k in range(batch_size):
+            new_xyz_batch_cnt[k] = ((rois_batch_inds == k).sum() *
+                                    roi_grid.size(1))
+        pooled_points, pooled_features = self.roi_grid_pool_layer(
+            xyz=xyz.contiguous(),
+            xyz_batch_cnt=xyz_batch_cnt,
+            new_xyz=new_xyz.contiguous(),
+            new_xyz_batch_cnt=new_xyz_batch_cnt,
+            features=feats.contiguous())  # (M1 + M2 ..., C)
+
+        pooled_features = pooled_features.view(
+            -1, self.grid_size, self.grid_size, self.grid_size,
+            pooled_features.shape[-1])
+        # (BxN, 6, 6, 6, C)
         return pooled_features
 
     def get_dense_grid_points(self, rois):

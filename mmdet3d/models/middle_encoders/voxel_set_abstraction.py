@@ -12,8 +12,8 @@ from torch import Tensor
 from mmdet3d.models.layers.pointnet_modules import build_sa_module
 from mmdet3d.registry import MODELS
 from mmdet3d.structures.det3d_data_sample import InstanceData
-
-
+from mmdet3d.models.layers.pointnet_modules.pointnet2_modules import GuidedSAModuleMSG
+from mmcv.ops.furthest_point_sample import furthest_point_sample
 def bilinear_interpolate_torch(im, x, y):
     """Bilinear interpolate for.
 
@@ -80,79 +80,79 @@ class VoxelSetAbstraction(BaseModule):
             used dict(type='BN1d', eps=1e-5, momentum=0.1)
     """
 
-    def __init__(
-        self,
-        keypoints_sampler: dict,
-        voxel_size: list = [0.05, 0.05, 0.1],
-        point_cloud_range: list = [0, -40, -3, 70.4, 40, 1],
-        rawpoint_sa_cfg: Optional[dict] = None,
-        voxel_sa_cfg_list: Optional[List[dict]] = None,
-        bev_cfg: Optional[dict] = None,
-        sample_mode: str = 'raw_points',
-        fused_out_channels: int = 128,
-        norm_cfg: dict = dict(type='BN1d', eps=1e-5, momentum=0.1)
-    ) -> None:
+    def __init__(self, num_keypoints, out_channels, voxel_size,
+                 point_cloud_range, voxel_sa_configs, rawpoint_sa_config=None,
+                 bev_sa_config=None, voxel_center_as_source=False,
+                 norm_cfg=dict(type='BN2d', eps=1e-5, momentum=0.01),
+                 voxel_center_align='half',
+                 debug=False):
         super().__init__()
+        self.debug = debug
+        assert voxel_center_align in ('half', 'halfmin')
+        self.voxel_center_align = voxel_center_align
+        self.num_keypoints = num_keypoints
+        self.out_channels = out_channels
         self.voxel_size = voxel_size
         self.point_cloud_range = point_cloud_range
-        assert sample_mode in ['raw_points', 'voxel_centers']
-        self.sample_model = sample_mode
+        self.voxel_center_as_source = voxel_center_as_source
 
-        self.voxel_sa_cfg_list = voxel_sa_cfg_list
-        self.rawpoint_sa_cfg = rawpoint_sa_cfg
-        self.bev_cfg = bev_cfg
+        self.voxel_sa_configs = voxel_sa_configs
+        self.rawpoint_sa_config = rawpoint_sa_config
+        self.bev_sa_config = bev_sa_config
 
-        self.keypoints_sampler = PointsSampler(**keypoints_sampler)
+        self.voxel_sa_layers = nn.ModuleList()
 
-        in_channels = 0
-        if self.bev_cfg is not None:
-            in_channels += self.bev_cfg.in_channels
+        gathered_channels = 0
 
-        if self.rawpoint_sa_cfg is not None:
-            self.rawpoints_sa_layer = build_sa_module(self.rawpoint_sa_cfg)
-            in_channels += sum(
-                [x[-1] for x in self.rawpoints_sa_layer.mlp_channels])
+        self.rawpoints_sa = (rawpoint_sa_config is not None)
+        if rawpoint_sa_config is not None:
+            self.rawpoints_sa_layer = GuidedSAModuleMSG(
+                in_channels=rawpoint_sa_config.in_channels,
+                radii=rawpoint_sa_config.pool_radius,
+                nsamples=rawpoint_sa_config.samples,
+                mlps=rawpoint_sa_config.mlps,
+                use_xyz=True,
+                pool_method='max',
+                norm_cfg=norm_cfg)
+            gathered_channels += sum([x[-1] for x in rawpoint_sa_config.mlps])
 
-        if self.voxel_sa_cfg_list is not None:
-            self.voxel_sa_layers = ModuleList()
-            self.downsample_scale_factor = []
-            for idx, voxel_sa_cfg in enumerate(self.voxel_sa_cfg_list):
-                self.downsample_scale_factor.append(
-                    voxel_sa_cfg.pop('scale_factor'))
-                cur_layer = build_sa_module(voxel_sa_cfg)
-                self.voxel_sa_layers.append(cur_layer)
-                in_channels += sum([x[-1] for x in cur_layer.mlp_channels])
+        for voxel_sa_config in voxel_sa_configs:
+            cur_layer = GuidedSAModuleMSG(
+                in_channels=voxel_sa_config.in_channels,
+                radii=voxel_sa_config.pool_radius,
+                nsamples=voxel_sa_config.samples,
+                mlps=voxel_sa_config.mlps,
+                use_xyz=True,
+                pool_method='max',
+                norm_cfg=norm_cfg)
+            self.voxel_sa_layers.append(cur_layer)
+            gathered_channels += sum([x[-1] for x in voxel_sa_config.mlps])
 
+        self.bev_sa = (bev_sa_config is not None)
+        if bev_sa_config is not None:
+            self.bev_sa = True
+            gathered_channels += bev_sa_config.in_channels
+
+        norm_cfg=dict(type='BN1d', eps=1e-5, momentum=0.01)
         self.point_feature_fusion = nn.Sequential(
-            nn.Linear(in_channels, fused_out_channels, bias=False),
-            build_norm_layer(norm_cfg, fused_out_channels)[1], nn.ReLU())
+            nn.Linear(gathered_channels, out_channels, bias=False),
+            build_norm_layer(norm_cfg, out_channels)[1],
+            nn.ReLU())
 
-    # def interpolate_from_bev_features(self, keypoints: Tensor,
-    #                                   bev_features: Tensor,
-    #                                   scale_factor: int) -> Tensor:
-    #     """Interpolate from Bev features by key points.
-    #
-    #     Args:
-    #         keypoints (torch.Tensor): Sampled key points from raw points,
-    #             shape is (B,N,3)，where N is key points num.
-    #         bev_features (torch.Tensor): Bev features, shape is (B,H,W,C).
-    #         scale_factor (int): Down sample scale factor.
-    #
-    #     Returns:
-    #         torch.Tensor: Key points Bev features.
-    #     """
-    #     # TODO: Here is different from OpenPCDet in inference,
-    #     # but I think it doesn't influence trained model accuracy.
+    # def interpolate_from_bev_features(self, keypoints, bev_features,
+    #                                   scale_factor):
     #     _, _, y_grid, x_grid = bev_features.shape
     #
     #     voxel_size_xy = keypoints.new_tensor(self.voxel_size[:2])
     #
-    #     # top-left coors in bev view
     #     bev_tl_grid_cxy = keypoints.new_tensor(self.point_cloud_range[:2])
-    #     # below-right coors in bev view
     #     bev_br_grid_cxy = keypoints.new_tensor(self.point_cloud_range[3:5])
-    #     bev_tl_grid_cxy.add_(0.5 * voxel_size_xy * scale_factor)
-    #     bev_br_grid_cxy.sub_(0.5 * voxel_size_xy * scale_factor)
+    #     if self.voxel_center_align == 'half':
+    #         bev_tl_grid_cxy.add_(0.5 * voxel_size_xy * scale_factor)
+    #         bev_br_grid_cxy.sub_(0.5 * voxel_size_xy * scale_factor)
+    #     elif self.voxel_center_align == 'halfmin':
+    #         bev_tl_grid_cxy.add_(0.5 * voxel_size_xy)
+    #         bev_br_grid_cxy.sub_(voxel_size_xy * (scale_factor - 0.5))
     #
     #     xy = keypoints[..., :2]
     #
@@ -160,210 +160,168 @@ class VoxelSetAbstraction(BaseModule):
     #         (bev_br_grid_cxy - bev_tl_grid_cxy)[None, None, :])
     #
     #     grid_sample_xy = (grid_sample_xy * 2 - 1).unsqueeze(1)
-    #     point_bev_features = F.grid_sample(
-    #         bev_features, grid=grid_sample_xy, align_corners=True)
+    #     point_bev_features = F.grid_sample(bev_features,
+    #                                        grid=grid_sample_xy,
+    #                                        align_corners=True)
     #     return point_bev_features.squeeze(2).permute(0, 2, 1).contiguous()
-
-    def interpolate_from_bev_features(self, keypoints, bev_features,
-                                      scale_factor):
+    def interpolate_from_bev_features(self, keypoints, bev_features, batch_size, bev_stride):
         """
-
         Args:
-            keypoints:
-            bev_features:
-            scale_factor:
+            keypoints: (N1 + N2 + ..., 4)
+            bev_features: (B, C, H, W)
+            batch_size:
+            bev_stride:
 
         Returns:
-
+            point_bev_features: (N1 + N2 + ..., C)
         """
+        x_idxs = (keypoints[..., 0] - self.point_cloud_range[0]) / self.voxel_size[0]
+        y_idxs = (keypoints[..., 1] - self.point_cloud_range[1]) / self.voxel_size[1]
+
+        x_idxs = x_idxs / bev_stride
+        y_idxs = y_idxs / bev_stride
+
         point_bev_features_list = []
-        batch_size = bev_features.shape[0]
         for k in range(batch_size):
-            cur_x_idxs = (keypoints[k, :, 0] -
-                          self.point_cloud_range[0]) / self.voxel_size[0]
-            cur_y_idxs = (keypoints[k, :, 1] -
-                          self.point_cloud_range[1]) / self.voxel_size[1]
-
-            cur_x_idxs = cur_x_idxs / scale_factor
-            cur_y_idxs = cur_y_idxs / scale_factor
-
+            cur_x_idxs = x_idxs[k,...]
+            cur_y_idxs = y_idxs[k,...]
             cur_bev_features = bev_features[k].permute(1, 2, 0)  # (H, W, C)
-            point_bev_features = bilinear_interpolate_torch(
-                cur_bev_features, cur_x_idxs, cur_y_idxs)
+            point_bev_features = bilinear_interpolate_torch(cur_bev_features, cur_x_idxs, cur_y_idxs)
             point_bev_features_list.append(point_bev_features)
 
-        point_bev_features = torch.stack(
-            point_bev_features_list, dim=0)  # (N1 + N2 + ..., C)
-        return point_bev_features
+        point_bev_features = torch.cat(point_bev_features_list, dim=0)  # (N1 + N2 + ..., C)
+        return point_bev_features.view(batch_size,keypoints.shape[1],-1)
 
-    def aggregate_keypoint_features(
-            self,
-            aggregate_module: nn.Module,
-            points_xyz: Tensor,
-            features: Optional[Tensor] = None,
-            target_xyz: Optional[Tensor] = None) -> Tuple:
-        """Aggregate keypoint features from one source by aggregate module.
-
-        Args:
-            aggregate_module (nn.Module): A SA module is used to aggregate
-                features.
-            points_xyz (torch.Tensor): (B, N, 3) xyz coordinates of the
-                features.
-            features (torch.Tensor, optional): (B, C, N) features of each
-                point. Default: None.
-            target_xyz (torch.Tensor, optional): (B, M, 3) new coords of
-                the outputs. Default: None.
-
-        Returns:
-            Tensor: New features xyz. (B, M, 3) where M is the number of
-                points.
-            Tensor: New feature descriptors.(B, M, C) where M is the number
-                of points. C is the sum of multi-scale SA modules output
-                channels num, like sum_k(mlps[k][-1]).
-            Tensor: Index of the features. (B, M) where M is the number
-                of points.
-        """
-        new_xyz, pooled_features, indices = aggregate_module(
-            points_xyz=points_xyz.contiguous(),
-            features=features.contiguous(),
-            target_xyz=target_xyz.contiguous())
-        return new_xyz, pooled_features.transpose(1, 2), indices
-
-    def sample_key_points(self, batch_inputs_dict: dict) -> Tensor:
-        """Sample key points from raw input points.
-
-        Args:
-            batch_inputs_dict (dict): The model input dict which include
-                'points', 'voxel_dict' keys.
-
-                    - points (list[torch.Tensor]): Point cloud of each sample.
-                    - voxel_dict (dict , optional): Voxel dict of each sample.
-
-        Returns:
-            torch.Tensor: Batch key points, shape is (B,N,D),
-                where N is key points num, D is raw points dim.
-        """
-        if self.sample_model == 'voxel_centers':
-            coors = batch_inputs_dict['voxel_dict']['coors']
-            batch_key_points, _ = self.get_voxel_centers(coors, scale_factor=1)
-        else:
-            raw_points = self.padded_batch_points(batch_inputs_dict['points'])
-            points_xyz = raw_points[:, :, :3].contiguous()
-            points_flipped = raw_points.transpose(1, 2).contiguous()
-            indices = self.keypoints_sampler(points_xyz, None)
-            batch_key_points = gather_points(
-                points_flipped, indices).transpose(1, 2).contiguous()
-        return batch_key_points
-
-    def padded_batch_points(self, points_list: List[Tensor]) -> Tensor:
-        """Padded points list to a Tensor.
-
-        Args:
-            points_list (List[torch.Tensor]): Point cloud of each sample.
-
-        Returns:
-            torch.Tensor: Batch points tensor, shape is (B,N,D),
-                where N is points num,D is raw points dim.
-        """
-        padded_points_list = []
-        max_points_num = max(points.shape[0] for points in points_list)
-        for points in points_list:
-            padded_points_list.append(
-                F.pad(points, (0, 0, 0, max_points_num - points.shape[0])))
-        batch_points = torch.stack(padded_points_list, dim=0)
-        return batch_points
-
-    def get_voxel_centers(self, coors: Tensor, scale_factor: int = 1) -> Tuple:
-        """Get voxel centers.
-
-        Args:
-            coors (torch.Tensor): The coordinates of each voxel.
-            scale_factor (int): Down sample scale factor.
-
-        Returns:
-            Tuple[torch.Tensor, list]: Return batch voxel centers and
-                voxel num.
-        """
+    def get_voxel_centers(self, coors, scale_factor):
         assert coors.shape[1] == 4
-        batch_size = coors[-1][0] + 1
-        batch_centers = []
-        batch_voxel_num = []
-        voxel_centers = coors[:, [3, 2, 1]].float()
+        voxel_centers = coors[:, [3, 2, 1]].float()  # (xyz)
         voxel_size = voxel_centers.new_tensor(self.voxel_size)
         pc_range_min = voxel_centers.new_tensor(self.point_cloud_range[:3])
 
-        voxel_centers = voxel_centers * voxel_size * scale_factor
-        voxel_centers += pc_range_min
+        voxel_centers = voxel_centers * voxel_size * scale_factor + pc_range_min
         voxel_centers.add_(0.5 * voxel_size * scale_factor)
-        for i in range(batch_size):
-            cur_voxel_centers = voxel_centers[coors[:, 0] == i]
-            batch_centers.append(cur_voxel_centers)
-            batch_voxel_num.append(cur_voxel_centers.shape[0])
-        batch_centers = self.padded_batch_points(batch_centers)
-        return batch_centers, batch_voxel_num
+        # if self.voxel_center_align == 'half':
+        #     voxel_centers.add_(0.5 * voxel_size * scale_factor)
+        # elif self.voxel_center_align == 'halfmin':
+        #     voxel_centers.add_(0.5 * voxel_size)
+        # else:
+        #     raise NotImplementedError
+        return voxel_centers
+
+    def get_sampled_points(self, points, coors):
+        assert points is not None or coors is not None
+        if self.voxel_center_as_source:
+            _src_points = self.get_voxel_centers(coors=coors, scale_factor=1)
+            batch_size = coors[-1, 0].item() + 1
+            src_points = [_src_points[coors[:, 0] == b] for b in
+                          range(batch_size)]
+        else:
+            src_points = [p[..., :3] for p in points]
+
+        keypoints_list = []
+        for points_to_sample in src_points:
+            num_points = points_to_sample.shape[0]
+            cur_pt_idxs = furthest_point_sample(
+                points_to_sample.unsqueeze(dim=0).contiguous(),
+                self.num_keypoints).long()[0]
+
+            if num_points < self.num_keypoints:
+                times = int(self.num_keypoints / num_points) + 1
+                non_empty = cur_pt_idxs[:num_points]
+                cur_pt_idxs = non_empty.repeat(times)[:self.num_keypoints]
+
+            keypoints = points_to_sample[cur_pt_idxs]
+
+            keypoints_list.append(keypoints)
+        keypoints = torch.stack(keypoints_list, dim=0)  # (B, M, 3)
+        return keypoints
+
 
     def forward(self, batch_inputs_dict: dict, feats_dict: dict,
                 rpn_results_list: List[InstanceData]) -> dict:
-        """Extract key points features from multi-source features.
-
+        """
         Args:
-            batch_inputs_dict (dict): The model input dict which include
-                'points', 'img' keys.
-
-                    - points (list[torch.Tensor]): Point cloud of each sample.
-                    - imgs (torch.Tensor, optional): Image of each sample.
-            feats_dict (dict): Multi-source features.
-            rpn_results_list (List[:obj:`InstancesData`], optional): Detection
-                results of rpn head.
+            batch_dict:
+                batch_size:
+                keypoints: (B, num_keypoints, 3)
+                multi_scale_3d_features: {
+                        'x_conv4': ...
+                    }
+                points: optional (N, 1 + 3 + C) [bs_idx, x, y, z, ...]
+                spatial_features: optional
+                spatial_features_stride: optional
 
         Returns:
-            Dict: Include key points and key points features.
+            point_features: (N, C)
+            point_coords: (N, 4)
+
         """
-        batch_inputs_dict['voxel_dict'] = feats_dict.pop('voxel_dict')
-        batch_keypoints = self.sample_key_points(batch_inputs_dict)[..., :3]
-        batch_raw_points = self.padded_batch_points(
-            batch_inputs_dict['points'])
+        points = batch_inputs_dict['points']
+        voxel_encode_features = feats_dict['multi_scale_3d_feats']
+        bev_encode_features = feats_dict['spatial_feats']
+        keypoints = self.get_sampled_points(points, None)
+
         point_features_list = []
-        num_keypoints = batch_keypoints.shape[1]
+        batch_size = len(points)
+        if self.bev_sa:
+            point_bev_features = self.interpolate_from_bev_features(
+                keypoints, bev_encode_features, batch_size, self.bev_sa_config.scale_factor)
+            point_features_list.append(point_bev_features)
 
-        if self.bev_cfg:
-            spatial_feats = feats_dict['spatial_feats']
-            keypoint_bev_features = self.interpolate_from_bev_features(
-                batch_keypoints, spatial_feats, self.bev_cfg.scale_factor)
-            point_features_list.append(keypoint_bev_features)
+        batch_size, num_keypoints, _ = keypoints.shape
+        key_xyz = keypoints.view(-1, 3)
+        key_xyz_batch_cnt = key_xyz.new_zeros(batch_size).int().fill_(
+            num_keypoints)
 
-        if self.rawpoint_sa_cfg:
-            batch_raw_points_feats = batch_raw_points[:, :, 3:].transpose(1, 2)
-            _, pooled_features, _ = \
-                self.aggregate_keypoint_features(self.rawpoints_sa_layer,
-                                                 batch_raw_points[:, :, :3],
-                                                 batch_raw_points_feats,
-                                                 batch_keypoints)
-            point_features_list.append(pooled_features)
+        if self.rawpoints_sa:
+            batch_points = torch.cat(points, dim=0)
+            batch_cnt = [len(p) for p in points]
+            xyz = batch_points[:, :3].contiguous()
+            features = None
+            if batch_points.size(1) > 0:
+                features = batch_points[:, 3:].contiguous()
+            xyz_batch_cnt = xyz.new_tensor(batch_cnt, dtype=torch.int32)
 
-        for i, voxel_sa_layer in enumerate(self.voxel_sa_layers):
-            cur_coords = feats_dict['multi_scale_3d_feats'][i].indices
-            cur_feats = feats_dict['multi_scale_3d_feats'][
-                i].features.contiguous()
-            # feat_dict = torch.load('/home/PJLAB/shenkun/workspace/OpenPCDet/tools/feats.pkl')
-            # cur_coords = feat_dict['cur_coords']
-            # cur_feats = feat_dict['cur_features']
-            batch_voxel_centers, batch_voxel_num = self.get_voxel_centers(
-                coors=cur_coords, scale_factor=self.downsample_scale_factor[i])
-            batch_cur_feats = self.padded_batch_points(
-                torch.split(cur_feats, batch_voxel_num, dim=0))
-            _, pooled_features, _ = self.aggregate_keypoint_features(
-                self.voxel_sa_layers[i],
-                points_xyz=batch_voxel_centers.contiguous(),
-                features=batch_cur_feats.transpose(1, 2).contiguous(),
-                target_xyz=batch_keypoints[:, :, :3].contiguous())
-            point_features_list.append(pooled_features)
-        batch_size = len(batch_inputs_dict['points'])
-        keypoint_features = torch.cat(
-            point_features_list, dim=-1).view(batch_size * num_keypoints, -1)
-        fusion_point_features = self.point_feature_fusion(keypoint_features)
+            pooled_points, pooled_features = self.rawpoints_sa_layer(
+                xyz=xyz.contiguous(),
+                xyz_batch_cnt=xyz_batch_cnt,
+                new_xyz=key_xyz.contiguous(),
+                new_xyz_batch_cnt=key_xyz_batch_cnt,
+                features=features.contiguous(),
+            )
+            point_features_list.append(
+                pooled_features.view(batch_size, num_keypoints, -1))
 
-        return dict(
-            keypoint_features=keypoint_features,
-            fusion_keypoint_features=fusion_point_features,
-            keypoints=batch_keypoints)
+        for k, voxel_sa_layer in enumerate(self.voxel_sa_layers):
+            cur_coords = voxel_encode_features[k].indices
+            xyz = self.get_voxel_centers(
+                coors=cur_coords,
+                scale_factor=self.voxel_sa_configs[k].scale_factor
+            ).contiguous()
+            xyz_batch_cnt = xyz.new_zeros(batch_size).int()
+            for bs_idx in range(batch_size):
+                xyz_batch_cnt[bs_idx] = (cur_coords[:, 0] == bs_idx).sum()
+
+            pooled_points, pooled_features = voxel_sa_layer(
+                xyz=xyz.contiguous(),
+                xyz_batch_cnt=xyz_batch_cnt,
+                new_xyz=key_xyz.contiguous(),
+                new_xyz_batch_cnt=key_xyz_batch_cnt,
+                features=voxel_encode_features[k].features.contiguous(),
+            )
+            point_features_list.append(
+                pooled_features.view(batch_size, num_keypoints, -1))
+
+        point_features = torch.cat(point_features_list, dim=-1).view(
+            batch_size * num_keypoints, -1)
+
+        fusion_point_features = self.point_feature_fusion(point_features)
+
+        bid = torch.arange(batch_size * num_keypoints,
+                           device=keypoints.device) // num_keypoints
+        key_bxyz = torch.cat((bid.to(key_xyz.dtype).unsqueeze(dim=-1),
+                              key_xyz), dim=-1)
+
+        return dict(keypoint_features=point_features,
+                    fusion_keypoint_features=fusion_point_features,
+                    keypoints=key_bxyz)

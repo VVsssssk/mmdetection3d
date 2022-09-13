@@ -208,6 +208,18 @@ if __name__ == '__main__':
         packages=find_packages(),
         include_package_data=True,
         package_data={'mmdet3d.ops': ['*/*.so']},
+        ext_modules=[
+        make_cuda_ext(
+            name='vsa_utils',
+            module='mmdet3d.models.layers.pointnet_modules',
+            sources=[
+                'src/ball_query.cu',
+                'src/group_points.cu',
+                'src/sampling.cu',
+                'src/voxel_query.cpp',
+                'src/voxel_query_gpu.cu',
+                'src/vsa_utils.cpp',
+            ])],
         classifiers=[
             'Development Status :: 4 - Beta',
             'License :: OSI Approved :: Apache Software License',

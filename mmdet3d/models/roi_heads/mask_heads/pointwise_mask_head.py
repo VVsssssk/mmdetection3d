@@ -48,8 +48,7 @@ class PointwiseMaskHead(BaseModule):
             mlps_layers.extend([
                 nn.Linear(cin, cout, bias=False),
                 build_norm_layer(norm_cfg, cout)[1],
-                nn.ReLU()
-            ])
+                nn.ReLU()])
             cin = cout
         mlps_layers.append(nn.Linear(cin, self.out_channels, bias=True))
 
@@ -117,7 +116,8 @@ class PointwiseMaskHead(BaseModule):
         gt_bboxes_3d = []
         gt_labels_3d = []
         for idx in range(batch_size):
-            points_xyz_list.append(points_bxyz[idx, :, :])
+            coords_idx = points_bxyz[:, 0] == idx
+            points_xyz_list.append(points_bxyz[coords_idx][..., 1:])
             gt_bboxes_3d.append(batch_gt_instances_3d[idx].bboxes_3d)
             gt_labels_3d.append(batch_gt_instances_3d[idx].labels_3d)
         seg_targets, = multi_apply(self.get_targets_single, points_xyz_list,
@@ -140,8 +140,8 @@ class PointwiseMaskHead(BaseModule):
         if self.class_agnostic:
             seg_cls_target = pos_mask.long()
         else:
-            seg_cls_target = seg_targets.masked_fill(seg_targets < 0,
-                                                     self.num_classes)
+            seg_cls_target = seg_targets.masked_fill(
+                seg_targets < 0, self.num_classes)
 
         loss_seg = self.loss_seg(seg_preds, seg_cls_target, seg_weights)
 

@@ -178,8 +178,10 @@ class PVRCNNROIHead(Base3DRoIHead):
             dict: Contains predictions of bbox_head and
                 features of roi_extractor.
         """
-        pooled_keypoints_feats = self.bbox_roi_extractor(
-            keypoints_feats, keypoints, rois)
+        pooled_keypoints_feats = self.bbox_roi_extractor(keypoints_feats,
+                                                    keypoints[..., 1:],
+                                                    keypoints[..., 0].int(),
+                                                    rois)
         bbox_score, bbox_reg = self.bbox_head(pooled_keypoints_feats)
 
         bbox_results = dict(bbox_scores=bbox_score, bbox_reg=bbox_reg)
