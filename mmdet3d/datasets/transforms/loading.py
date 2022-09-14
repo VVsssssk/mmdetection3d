@@ -438,7 +438,7 @@ class LoadPointsFromFile(BaseTransform):
         self.load_dim = load_dim
         self.use_dim = use_dim
         self.file_client_args = file_client_args.copy()
-        self.file_client = None
+        self.file_client = mmengine.FileClient(**self.file_client_args)
 
     def _load_points(self, pts_filename: str) -> np.ndarray:
         """Private function to load point clouds data.
