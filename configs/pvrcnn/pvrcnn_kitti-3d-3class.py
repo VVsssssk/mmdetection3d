@@ -194,7 +194,7 @@ model = dict(
             dropout=0.3,
             with_corner_loss=True,
             bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
-            #bbox_coder=dict(type='PVRCNNBoxCoder', bottom_center=True),
+            # bbox_coder=dict(type='PVRCNNBoxCoder', bottom_center=True),
             loss_bbox=dict(
                 type='mmdet.SmoothL1Loss',
                 beta=1.0 / 9.0,
@@ -293,45 +293,52 @@ model = dict(
             nms_thr=0.1,
             score_thr=0.1)))
 train_dataloader = dict(
-    batch_size=4,
-    num_workers=4,
+    batch_size=2,
+    num_workers=2,
     dataset=dict(dataset=dict(pipeline=train_pipeline)))
 test_dataloader = dict(dataset=dict(pipeline=test_pipeline))
 
 lr = 0.001
 # train_cfg = dict(max_epochs=80)
 optim_wrapper = dict(optimizer=dict(lr=lr))
-# param_scheduler = [
-#     dict(
-#         type='CosineAnnealingLR',
-#         T_max=35,
-#         eta_min=lr * 10,
-#         begin=0,
-#         end=35,
-#         by_epoch=True,
-#         convert_to_iter_based=True),
-#     dict(
-#         type='CosineAnnealingLR',
-#         T_max=45,
-#         eta_min=lr * 1e-4,
-#         begin=35,
-#         end=80,
-#         by_epoch=True,
-#         convert_to_iter_based=True),
-#     dict(
-#         type='CosineAnnealingMomentum',
-#         T_max=35,
-#         eta_min=0.85 / 0.95,
-#         begin=0,
-#         end=35,
-#         by_epoch=True,
-#         convert_to_iter_based=True),
-#     dict(
-#         type='CosineAnnealingMomentum',
-#         T_max=45,
-#         eta_min=1,
-#         begin=35,
-#         end=45,
-#         by_epoch=True,
-#         convert_to_iter_based=True)
-# ]
+param_scheduler = [
+    # learning rate scheduler
+    # During the first 16 epochs, learning rate increases from 0 to lr * 10
+    # during the next 24 epochs, learning rate decreases from lr * 10 to
+    # lr * 1e-4
+    dict(
+        type='CosineAnnealingLR',
+        T_max=16,
+        eta_min=lr * 10,
+        begin=0,
+        end=16,
+        by_epoch=True,
+        convert_to_iter_based=True),
+    dict(
+        type='CosineAnnealingLR',
+        T_max=24,
+        eta_min=lr * 1e-4,
+        begin=16,
+        end=40,
+        by_epoch=True,
+        convert_to_iter_based=True),
+    # momentum scheduler
+    # During the first 16 epochs, momentum increases from 0 to 0.85 / 0.95
+    # during the next 24 epochs, momentum increases from 0.85 / 0.95 to 1
+    dict(
+        type='CosineAnnealingMomentum',
+        T_max=16,
+        eta_min=0.85 / 0.95,
+        begin=0,
+        end=16,
+        by_epoch=True,
+        convert_to_iter_based=True),
+    dict(
+        type='CosineAnnealingMomentum',
+        T_max=24,
+        eta_min=1,
+        begin=16,
+        end=40,
+        by_epoch=True,
+        convert_to_iter_based=True)
+]
