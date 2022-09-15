@@ -82,16 +82,36 @@ model = dict(
         voxel_size=voxel_size,
         point_cloud_range=point_cloud_range,
         voxel_sa_configs=[
-            dict(scale_factor=1, in_channels=16, pool_radius=(0.4, 0.8),
-                 samples=(16, 16), mlps=((16, 16), (16, 16))),
-            dict(scale_factor=2, in_channels=32, pool_radius=(0.8, 1.2),
-                 samples=(16, 32), mlps=((32, 32), (32, 32))),
-            dict(scale_factor=4, in_channels=64, pool_radius=(1.2, 2.4),
-                 samples=(16, 32), mlps=((64, 64), (64, 64))),
-            dict(scale_factor=8, in_channels=64, pool_radius=(2.4, 4.8),
-                 samples=(16, 32), mlps=((64, 64), (64, 64)))],
-        rawpoint_sa_config=dict(in_channels=1, pool_radius=(0.4, 0.8),
-                                samples=(16, 16), mlps=((16, 16), (16, 16))),
+            dict(
+                scale_factor=1,
+                in_channels=16,
+                pool_radius=(0.4, 0.8),
+                samples=(16, 16),
+                mlps=((16, 16), (16, 16))),
+            dict(
+                scale_factor=2,
+                in_channels=32,
+                pool_radius=(0.8, 1.2),
+                samples=(16, 32),
+                mlps=((32, 32), (32, 32))),
+            dict(
+                scale_factor=4,
+                in_channels=64,
+                pool_radius=(1.2, 2.4),
+                samples=(16, 32),
+                mlps=((64, 64), (64, 64))),
+            dict(
+                scale_factor=8,
+                in_channels=64,
+                pool_radius=(2.4, 4.8),
+                samples=(16, 32),
+                mlps=((64, 64), (64, 64)))
+        ],
+        rawpoint_sa_config=dict(
+            in_channels=1,
+            pool_radius=(0.4, 0.8),
+            samples=(16, 16),
+            mlps=((16, 16), (16, 16))),
         bev_sa_config=dict(scale_factor=8, in_channels=256),
     ),
     backbone=dict(
@@ -128,6 +148,7 @@ model = dict(
         assigner_per_size=True,
         assign_per_class=True,
         bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
+        # bbox_coder=dict(type='PVRCNNBoxCoder', bottom_center=False),
         loss_cls=dict(
             type='mmdet.FocalLoss',
             use_sigmoid=True,
@@ -173,6 +194,7 @@ model = dict(
             dropout=0.3,
             with_corner_loss=True,
             bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
+            #bbox_coder=dict(type='PVRCNNBoxCoder', bottom_center=True),
             loss_bbox=dict(
                 type='mmdet.SmoothL1Loss',
                 beta=1.0 / 9.0,
@@ -271,45 +293,45 @@ model = dict(
             nms_thr=0.1,
             score_thr=0.1)))
 train_dataloader = dict(
-    batch_size=2,
-    num_workers=2,
+    batch_size=4,
+    num_workers=4,
     dataset=dict(dataset=dict(pipeline=train_pipeline)))
 test_dataloader = dict(dataset=dict(pipeline=test_pipeline))
 
 lr = 0.001
-train_cfg = dict(max_epochs=80)
+# train_cfg = dict(max_epochs=80)
 optim_wrapper = dict(optimizer=dict(lr=lr))
-param_scheduler = [
-    dict(
-        type='CosineAnnealingLR',
-        T_max=35,
-        eta_min=lr * 10,
-        begin=0,
-        end=35,
-        by_epoch=True,
-        convert_to_iter_based=True),
-    dict(
-        type='CosineAnnealingLR',
-        T_max=45,
-        eta_min=lr * 1e-4,
-        begin=35,
-        end=80,
-        by_epoch=True,
-        convert_to_iter_based=True),
-    dict(
-        type='CosineAnnealingMomentum',
-        T_max=35,
-        eta_min=0.85 / 0.95,
-        begin=0,
-        end=35,
-        by_epoch=True,
-        convert_to_iter_based=True),
-    dict(
-        type='CosineAnnealingMomentum',
-        T_max=45,
-        eta_min=1,
-        begin=35,
-        end=45,
-        by_epoch=True,
-        convert_to_iter_based=True)
-]
+# param_scheduler = [
+#     dict(
+#         type='CosineAnnealingLR',
+#         T_max=35,
+#         eta_min=lr * 10,
+#         begin=0,
+#         end=35,
+#         by_epoch=True,
+#         convert_to_iter_based=True),
+#     dict(
+#         type='CosineAnnealingLR',
+#         T_max=45,
+#         eta_min=lr * 1e-4,
+#         begin=35,
+#         end=80,
+#         by_epoch=True,
+#         convert_to_iter_based=True),
+#     dict(
+#         type='CosineAnnealingMomentum',
+#         T_max=35,
+#         eta_min=0.85 / 0.95,
+#         begin=0,
+#         end=35,
+#         by_epoch=True,
+#         convert_to_iter_based=True),
+#     dict(
+#         type='CosineAnnealingMomentum',
+#         T_max=45,
+#         eta_min=1,
+#         begin=35,
+#         end=45,
+#         by_epoch=True,
+#         convert_to_iter_based=True)
+# ]
