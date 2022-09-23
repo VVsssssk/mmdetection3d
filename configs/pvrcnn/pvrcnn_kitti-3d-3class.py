@@ -7,7 +7,7 @@ voxel_size = [0.05, 0.05, 0.1]
 point_cloud_range = [0, -40, -3, 70.4, 40, 1]
 
 data_root = 'data/kitti/'
-class_names = ['Car', 'Pedestrian', 'Cyclist']
+class_names = ['Pedestrian', 'Cyclist', 'Car']
 
 db_sampler = dict(
     data_root=data_root,
@@ -210,13 +210,6 @@ model = dict(
     train_cfg=dict(
         rpn=dict(
             assigner=[
-                dict(  # for Car
-                    type='Max3DIoUAssigner',
-                    iou_calculator=dict(type='BboxOverlapsNearest3D'),
-                    pos_iou_thr=0.6,
-                    neg_iou_thr=0.45,
-                    min_pos_iou=0.45,
-                    ignore_iof_thr=-1),
                 dict(  # for Pedestrian
                     type='Max3DIoUAssigner',
                     iou_calculator=dict(type='BboxOverlapsNearest3D'),
@@ -230,6 +223,13 @@ model = dict(
                     pos_iou_thr=0.5,
                     neg_iou_thr=0.35,
                     min_pos_iou=0.35,
+                    ignore_iof_thr=-1),
+                dict(  # for Car
+                    type='Max3DIoUAssigner',
+                    iou_calculator=dict(type='BboxOverlapsNearest3D'),
+                    pos_iou_thr=0.6,
+                    neg_iou_thr=0.45,
+                    min_pos_iou=0.45,
                     ignore_iof_thr=-1)
             ],
             allowed_border=0,
@@ -244,14 +244,6 @@ model = dict(
             use_rotate_nms=True),
         rcnn=dict(
             assigner=[
-                dict(  # for Car
-                    type='Max3DIoUAssigner',
-                    iou_calculator=dict(
-                        type='BboxOverlaps3D', coordinate='lidar'),
-                    pos_iou_thr=0.55,
-                    neg_iou_thr=0.55,
-                    min_pos_iou=0.55,
-                    ignore_iof_thr=-1),
                 dict(  # for Pedestrian
                     type='Max3DIoUAssigner',
                     iou_calculator=dict(
@@ -261,6 +253,14 @@ model = dict(
                     min_pos_iou=0.55,
                     ignore_iof_thr=-1),
                 dict(  # for Cyclist
+                    type='Max3DIoUAssigner',
+                    iou_calculator=dict(
+                        type='BboxOverlaps3D', coordinate='lidar'),
+                    pos_iou_thr=0.55,
+                    neg_iou_thr=0.55,
+                    min_pos_iou=0.55,
+                    ignore_iof_thr=-1),
+                dict(  # for Car
                     type='Max3DIoUAssigner',
                     iou_calculator=dict(
                         type='BboxOverlaps3D', coordinate='lidar'),
