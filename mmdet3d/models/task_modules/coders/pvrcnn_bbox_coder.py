@@ -76,7 +76,6 @@ class PVRCNNBoxCoder(BaseBBoxCoder):
             xa, ya, za, wa, la, ha, ra = torch.split(anchors, 1, dim=-1)
             xt, yt, zt, wt, lt, ht, rt = torch.split(deltas, 1, dim=-1)
 
-        # za = za + ha / 2
         diagonal = torch.sqrt(la**2 + wa**2)
         xg = xt * diagonal + xa
         yg = yt * diagonal + ya
