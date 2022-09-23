@@ -7,8 +7,7 @@ voxel_size = [0.05, 0.05, 0.1]
 point_cloud_range = [0, -40, -3, 70.4, 40, 1]
 
 data_root = 'data/kitti/'
-# class_names = ['Car', 'Pedestrian', 'Cyclist']
-class_names = ['Pedestrian', 'Cyclist', 'Car']
+class_names = ['Car', 'Pedestrian', 'Cyclist']
 
 db_sampler = dict(
     data_root=data_root,
@@ -136,10 +135,10 @@ model = dict(
         dir_offset=0.78539,
         anchor_generator=dict(
             type='Anchor3DRangeGenerator',
-            ranges=[[0, -40.0, -1, 70.4, 40.0, -1],
+            ranges=[[0, -40.0, 0.265, 70.4, 40.0, 0.265],
                     [0, -40.0, 0.265, 70.4, 40.0, 0.265],
-                    [0, -40.0, 0.265, 70.4, 40.0, 0.265]],
-            sizes=[[3.9, 1.6, 1.56], [0.8, 0.6, 1.73], [1.76, 0.6, 1.73]],
+                    [0, -40.0, -1, 70.4, 40.0, -1]],
+            sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
             # ranges=[[0.2, -39.8, -0.6, 70.2, 39.8, -0.6],
             #         [0.2, -39.8, -0.6, 70.2, 39.8, -0.6],
             #         [0.2, -39.8, -1.78, 70.2, 39.8, -1.78]],
@@ -149,8 +148,7 @@ model = dict(
         diff_rad_by_sin=True,
         assigner_per_size=True,
         assign_per_class=True,
-        # bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
-        bbox_coder=dict(type='PVRCNNBoxCoder', bottom_center=False),
+        bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
         loss_cls=dict(
             type='mmdet.FocalLoss',
             use_sigmoid=True,
@@ -195,8 +193,8 @@ model = dict(
             cls_fc=(256, 256),
             dropout=0.3,
             with_corner_loss=True,
-            # bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
-            bbox_coder=dict(type='PVRCNNBoxCoder', bottom_center=True),
+            bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
+            # bbox_coder=dict(type='PVRCNNBoxCoder', bottom_center=True),
             loss_bbox=dict(
                 type='mmdet.SmoothL1Loss',
                 beta=1.0 / 9.0,
