@@ -408,8 +408,8 @@ class PVRCNNBboxHead(BaseModule):
             selected_label_preds = label_preds[selected]
             selected_scores = cls_preds[selected]
 
-            selected_label_preds -= 1
-            selected_label_preds[selected_label_preds == -1] = 2
+            # selected_label_preds -= 1
+            # selected_label_preds[selected_label_preds == -1] = 2
             results = InstanceData()
             results.bboxes_3d = img_metas[batch_id]['box_type_3d'](
                 selected_bboxes, self.bbox_coder.code_size)
