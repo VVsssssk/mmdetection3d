@@ -13,10 +13,9 @@ class PVRCNNBoxCoder(BaseBBoxCoder):
         code_size (int): The dimension of boxes to be encoded.
     """
 
-    def __init__(self, code_size=7, bottom_center=True):
+    def __init__(self, code_size=7):
         super(PVRCNNBoxCoder, self).__init__()
         self.code_size = code_size
-        self.bottom_center = bottom_center
 
     @staticmethod
     def encode(src_boxes, dst_boxes):
@@ -56,7 +55,7 @@ class PVRCNNBoxCoder(BaseBBoxCoder):
         return torch.cat([xt, yt, zt, wt, lt, ht, rt, *cts], dim=-1)
 
     @staticmethod
-    def decode(anchors, deltas, bottom_center=False):
+    def decode(anchors, deltas):
         """Apply transformation `deltas` (dx, dy, dz, dx_size, dy_size,
         dz_size, dr, dv*) to `boxes`.
 
@@ -87,7 +86,6 @@ class PVRCNNBoxCoder(BaseBBoxCoder):
         wg = torch.exp(wt) * wa
         hg = torch.exp(ht) * ha
         rg = rt + ra
-        if bottom_center:
-            zg = zg - hg / 2
+        zg = zg - hg / 2
         cgs = [t + a for t, a in zip(cts, cas)]
         return torch.cat([xg, yg, zg, wg, lg, hg, rg, *cgs], dim=-1)

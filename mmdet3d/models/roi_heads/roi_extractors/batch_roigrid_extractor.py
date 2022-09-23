@@ -53,12 +53,13 @@ class Batch3DRoIGridExtractor(BaseModule):
         return pooled_features
 
     def get_dense_grid_points(self, rois):
+        rois[:,2] += rois[:, 5] / 2
         faked_features = rois.new_ones(
             (self.grid_size, self.grid_size, self.grid_size))
         dense_idx = faked_features.nonzero()
         dense_idx = dense_idx.repeat(rois.size(0), 1, 1).float()
         dense_idx = ((dense_idx + 0.5) / self.grid_size)
-        dense_idx[..., :2] -= 0.5
+        dense_idx[..., :3] -= 0.5
 
         roi_ctr = rois[:, :3]
         roi_dim = rois[:, 3:6]

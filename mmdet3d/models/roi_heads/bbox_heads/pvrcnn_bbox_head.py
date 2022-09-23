@@ -384,7 +384,7 @@ class PVRCNNBboxHead(BaseModule):
         local_roi_boxes = roi_boxes.clone().detach()
         local_roi_boxes[..., 0:3] = 0
         batch_box_preds = self.bbox_coder.decode(
-            local_roi_boxes, bbox_reg, bottom_center=True)
+            local_roi_boxes, bbox_reg)
         batch_box_preds[..., 0:3] = rotation_3d_in_axis(
             batch_box_preds[..., 0:3].unsqueeze(1), roi_ry, axis=2).squeeze(1)
         batch_box_preds[:, 0:3] += roi_xyz
