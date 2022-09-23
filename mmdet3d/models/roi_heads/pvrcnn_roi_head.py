@@ -125,15 +125,14 @@ class PVRCNNROIHead(Base3DRoIHead):
         rois = bbox3d2roi(
             [res['bboxes_3d'].tensor for res in rpn_results_list])
         labels_3d = [res['labels_3d'] for res in rpn_results_list]
-        cls_preds = [res['cls_preds'] for res in rpn_results_list]
         bbox_results = self._bbox_forward(point_features,
                                           feats_dict['keypoints'], rois)
 
         bbox_list = self.bbox_head.get_results(rois,
                                                bbox_results['bbox_scores'],
                                                bbox_results['bbox_reg'],
-                                               labels_3d, cls_preds,
-                                               batch_input_metas, test_cfg)
+                                               labels_3d, batch_input_metas,
+                                               test_cfg)
         return bbox_list
 
     def _bbox_forward_train(self, seg_preds, keypoints_feats, keypoints,
@@ -178,10 +177,8 @@ class PVRCNNROIHead(Base3DRoIHead):
             dict: Contains predictions of bbox_head and
                 features of roi_extractor.
         """
-        pooled_keypoints_feats = self.bbox_roi_extractor(keypoints_feats,
-                                                    keypoints[..., 1:],
-                                                    keypoints[..., 0].int(),
-                                                    rois)
+        pooled_keypoints_feats = self.bbox_roi_extractor(
+            keypoints_feats, keypoints[..., 1:], keypoints[..., 0].int(), rois)
         bbox_score, bbox_reg = self.bbox_head(pooled_keypoints_feats)
 
         bbox_results = dict(bbox_scores=bbox_score, bbox_reg=bbox_reg)

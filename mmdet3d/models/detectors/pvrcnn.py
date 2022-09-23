@@ -15,7 +15,6 @@ from .two_stage import TwoStage3DDetector
 class PointVoxelRCNN(TwoStage3DDetector):
 
     def __init__(self,
-                 voxel_layer: dict,
                  voxel_encoder: dict,
                  middle_encoder: dict,
                  backbone: dict,
@@ -36,7 +35,6 @@ class PointVoxelRCNN(TwoStage3DDetector):
             test_cfg=test_cfg,
             init_cfg=init_cfg,
             data_preprocessor=data_preprocessor)
-        self.voxel_layer = Voxelization(**voxel_layer)
         self.voxel_encoder = MODELS.build(voxel_encoder)
         self.middle_encoder = MODELS.build(middle_encoder)
         self.keypoints_encoder = MODELS.build(keypoints_encoder)
@@ -93,33 +91,10 @@ class PointVoxelRCNN(TwoStage3DDetector):
 
         return results_list
 
-    @torch.no_grad()
-    def voxelize(self, points):
-        """Apply hard voxelization to points."""
-        voxels, coors, num_points = [], [], []
-        for res in points:
-            res_voxels, res_coors, res_num_points = self.voxel_layer(res)
-            voxels.append(res_voxels)
-            coors.append(res_coors)
-            num_points.append(res_num_points)
-        voxels = torch.cat(voxels, dim=0)
-        num_points = torch.cat(num_points, dim=0)
-        coors_batch = []
-        for i, coor in enumerate(coors):
-            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
-            coors_batch.append(coor_pad)
-        coors_batch = torch.cat(coors_batch, dim=0)
-        return dict(voxels=voxels, num_points=num_points, coors=coors_batch)
-
     def extract_feat(self, batch_inputs_dict: Dict):
         """Extract features from points."""
         feats_dict = dict()
-        voxel_dict = self.voxelize(batch_inputs_dict['points'])
-        # import torch
-        # voxel_dict = torch.load('voxel_dict.pkl')
-        # voxel_dict['coors'] = voxel_dict['coors'].int()
-        # voxel_dict['num_points'] = voxel_dict['num_points'].int()
-        feats_dict['voxel_dict'] = voxel_dict
+        voxel_dict = batch_inputs_dict['voxels']
         voxel_features = self.voxel_encoder(voxel_dict['voxels'],
                                             voxel_dict['num_points'],
                                             voxel_dict['coors'])

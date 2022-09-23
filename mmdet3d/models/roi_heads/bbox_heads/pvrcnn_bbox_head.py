@@ -355,10 +355,9 @@ class PVRCNNBboxHead(BaseModule):
 
     def get_results(self,
                     rois,
-                    bbox_scores,
+                    batch_cls_preds,
                     bbox_reg,
                     class_labels,
-                    cls_preds,
                     img_metas,
                     cfg=None):
         """Generate bboxes from bbox head predictions.
@@ -384,37 +383,33 @@ class PVRCNNBboxHead(BaseModule):
         roi_xyz = roi_boxes[..., 0:3].view(-1, 3)
         local_roi_boxes = roi_boxes.clone().detach()
         local_roi_boxes[..., 0:3] = 0
-        rcnn_boxes3d = self.bbox_coder.decode(
+        batch_box_preds = self.bbox_coder.decode(
             local_roi_boxes, bbox_reg, bottom_center=True)
-        rcnn_boxes3d[..., 0:3] = rotation_3d_in_axis(
-            rcnn_boxes3d[..., 0:3].unsqueeze(1), roi_ry, axis=2).squeeze(1)
-        rcnn_boxes3d[:, 0:3] += roi_xyz
+        batch_box_preds[..., 0:3] = rotation_3d_in_axis(
+            batch_box_preds[..., 0:3].unsqueeze(1), roi_ry, axis=2).squeeze(1)
+        batch_box_preds[:, 0:3] += roi_xyz
 
         # post processing
         result_list = []
         for batch_id in range(batch_size):
-            cur_class_labels = class_labels[batch_id]
-            cur_class_score = cls_preds[batch_id]
-            cur_bbox_score = bbox_scores[roi_batch_id == batch_id]
-            cur_bbox_score = cur_bbox_score.sigmoid().squeeze(dim=-1)
-            cur_rcnn_boxes3d = rcnn_boxes3d[roi_batch_id == batch_id]
+            cls_preds = batch_cls_preds[roi_batch_id == batch_id]
+            box_preds = batch_box_preds[roi_batch_id == batch_id]
+            label_preds = class_labels[batch_id]
 
-            cls_scores, _ = torch.max(cur_class_score, dim=-1)
+            cls_preds = cls_preds.sigmoid()
+            cls_preds, _ = torch.max(cls_preds, dim=-1)
             selected = self.class_agnostic_nms(
-                obj_scores=cur_bbox_score,
-                bbox=cur_rcnn_boxes3d,
+                obj_scores_ori=cls_preds,
+                bbox=box_preds,
                 input_meta=img_metas[batch_id],
                 cfg=cfg)
-            # selected = self.multi_class_nms(cur_box_prob, cur_rcnn_boxes3d,
-            #                                 cfg.score_thr, cfg.nms_thr,
-            #                                 img_metas[batch_id],
-            #                                 cfg.use_rotate_nms)
-            selected_bboxes = cur_rcnn_boxes3d[selected]
-            selected_label_preds = cur_class_labels[selected]
-            selected_scores = cls_scores[selected]
 
-            # selected_label_preds -= 1
-            # selected_label_preds[selected_label_preds == -1] = 2
+            selected_bboxes = box_preds[selected]
+            selected_label_preds = label_preds[selected]
+            selected_scores = cls_preds[selected]
+
+            selected_label_preds -= 1
+            selected_label_preds[selected_label_preds == -1] = 2
             results = InstanceData()
             results.bboxes_3d = img_metas[batch_id]['box_type_3d'](
                 selected_bboxes, self.bbox_coder.code_size)
@@ -424,7 +419,7 @@ class PVRCNNBboxHead(BaseModule):
             result_list.append(results)
         return result_list
 
-    def class_agnostic_nms(self, obj_scores, bbox, cfg, input_meta):
+    def class_agnostic_nms(self, obj_scores_ori, bbox, cfg, input_meta):
         """Class agnostic nms.
 
         Args:
@@ -435,6 +430,7 @@ class PVRCNNBboxHead(BaseModule):
         Returns:
             tuple[torch.Tensor]: Bounding boxes, scores and labels.
         """
+        obj_scores = obj_scores_ori.clone()
         if cfg.use_rotate_nms:
             nms_func = nms_bev
         else:

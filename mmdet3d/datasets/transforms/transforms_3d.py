@@ -885,8 +885,9 @@ class PointsRangeFilter(BaseTransform):
         point_cloud_range (list[float]): Point cloud range.
     """
 
-    def __init__(self, point_cloud_range: list):
+    def __init__(self, point_cloud_range: list, mask_on_bev: bool = False):
         self.pcd_range = np.array(point_cloud_range, dtype=np.float32)
+        self.mask_on_bev = mask_on_bev
 
     def transform(self, input_dict: dict) -> dict:
         """Transform function to filter points by the range.
@@ -899,7 +900,7 @@ class PointsRangeFilter(BaseTransform):
                 and 'pts_semantic_mask' keys are updated in the result dict.
         """
         points = input_dict['points']
-        points_mask = points.in_range_3d(self.pcd_range)
+        points_mask = points.in_range_3d(self.pcd_range, self.mask_on_bev)
         clean_points = points[points_mask]
         input_dict['points'] = clean_points
         points_mask = points_mask.numpy()
