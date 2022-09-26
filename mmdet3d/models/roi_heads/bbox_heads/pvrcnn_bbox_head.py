@@ -134,9 +134,6 @@ class PVRCNNBboxHead(BaseModule):
         bbox_reg = self.reg_out(reg_feats).transpose(1,
                                                      2).contiguous().squeeze(
                                                          dim=1)  # (B, C)
-        # bbox_dict = torch.load('bbox_head.pkl')
-        # bbox_score=bbox_dict['bbox_score']
-        # bbox_reg=bbox_dict['bbox_reg']
         return bbox_score, bbox_reg
 
     def loss(self, cls_score, bbox_pred, rois, labels, bbox_targets,
@@ -407,8 +404,6 @@ class PVRCNNBboxHead(BaseModule):
             selected_label_preds = label_preds[selected]
             selected_scores = cls_preds[selected]
 
-            # selected_label_preds -= 1
-            # selected_label_preds[selected_label_preds == -1] = 2
             results = InstanceData()
             results.bboxes_3d = img_metas[batch_id]['box_type_3d'](
                 selected_bboxes, self.bbox_coder.code_size)
