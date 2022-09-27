@@ -2,15 +2,24 @@
 from mmengine.model import BaseModule
 
 from mmdet3d.models.layers.pointnet_modules import build_sa_module
+from mmdet3d.models.layers.pointnet_modules.pointnet2_modules import \
+    GuidedSAModuleMSG
 from mmdet3d.registry import MODELS
 from mmdet3d.structures.bbox_3d import rotation_3d_in_axis
-from mmdet3d.models.layers.pointnet_modules.pointnet2_modules import GuidedSAModuleMSG
+
 
 @MODELS.register_module()
 class Batch3DRoIGridExtractor(BaseModule):
-    def __init__(self, in_channels, pool_radius, samples, mlps, grid_size=6,
+
+    def __init__(self,
+                 in_channels,
+                 pool_radius,
+                 samples,
+                 mlps,
+                 grid_size=6,
                  norm_cfg=dict(type='BN2d', eps=1e-5, momentum=0.01),
-                 mode='max', init_cfg=None):
+                 mode='max',
+                 init_cfg=None):
         super(Batch3DRoIGridExtractor, self).__init__(init_cfg=init_cfg)
         self.roi_grid_pool_layer = GuidedSAModuleMSG(
             in_channels=in_channels,
@@ -46,14 +55,14 @@ class Batch3DRoIGridExtractor(BaseModule):
             new_xyz_batch_cnt=new_xyz_batch_cnt,
             features=feats.contiguous())  # (M1 + M2 ..., C)
 
-        pooled_features = pooled_features.view(
-            -1, self.grid_size, self.grid_size, self.grid_size,
-            pooled_features.shape[-1])
+        pooled_features = pooled_features.view(-1, self.grid_size,
+                                               self.grid_size, self.grid_size,
+                                               pooled_features.shape[-1])
         # (BxN, 6, 6, 6, C)
         return pooled_features
 
     def get_dense_grid_points(self, rois):
-        rois[:, 2] += rois[:, 5] / 2
+        # rois[:, 2] += rois[:, 5] / 2
         faked_features = rois.new_ones(
             (self.grid_size, self.grid_size, self.grid_size))
         dense_idx = faked_features.nonzero()
