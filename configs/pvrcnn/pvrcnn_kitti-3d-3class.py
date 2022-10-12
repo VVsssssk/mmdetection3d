@@ -30,7 +30,10 @@ train_pipeline = [
         type='GlobalRotScaleTrans',
         rot_range=[-0.78539816, 0.78539816],
         scale_ratio_range=[0.95, 1.05]),
-    dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range, mask_on_bev=True),
+    dict(
+        type='PointsRangeFilter',
+        point_cloud_range=point_cloud_range,
+        mask_on_bev=True),
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
     dict(type='PointShuffle'),
     dict(
@@ -132,16 +135,16 @@ model = dict(
         in_channels=512,
         feat_channels=512,
         use_direction_classifier=True,
-        dir_offset=0.78539,
+        # dir_offset=0.78539,
         anchor_generator=dict(
             type='Anchor3DRangeGenerator',
             # ranges=[[0, -40.0, 0.265, 70.4, 40.0, 0.265],
             #         [0, -40.0, 0.265, 70.4, 40.0, 0.265],
             #         [0, -40.0, -1, 70.4, 40.0, -1]],
             # sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
-            ranges=[[0, -40.0, 0.265, 70.4, 40.0, 0.265],
-                    [0, -40.0, 0.265, 70.4, 40.0, 0.265],
-                    [0, -40.0, -1, 70.4, 40.0, -1]],
+            ranges=[[0, -40.0, -0.6, 70.4, 40.0, -0.6],
+                    [0, -40.0, -0.6, 70.4, 40.0, -0.6],
+                    [0, -40.0, -1.78, 70.4, 40.0, -1.78]],
             sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
             rotations=[0, 1.57],
             reshape_out=False),
@@ -272,7 +275,7 @@ model = dict(
             sampler=dict(
                 type='IoUNegPiecewiseSampler',
                 num=128,
-                pos_fraction=0.5,
+                pos_fraction=0.55,
                 neg_piece_fractions=[0.8, 0.2],
                 neg_iou_piece_thrs=[0.55, 0.1],
                 neg_pos_ub=-1,
@@ -291,7 +294,7 @@ model = dict(
         rcnn=dict(
             use_rotate_nms=True,
             use_raw_score=True,
-            nms_thr=0.1,
+            nms_thr=0.01,
             score_thr=0.1)))
 # train_dataloader = dict(
 #     batch_size=1,
@@ -299,11 +302,13 @@ model = dict(
 #     dataset=dict(
 #         # times=1,
 #         dataset=dict(pipeline=train_pipeline, metainfo=metainfo)))
-# test_dataloader = dict(dataset=dict(pipeline=test_pipeline, metainfo=metainfo))
-# eval_dataloader = dict(dataset=dict(pipeline=test_pipeline, metainfo=metainfo))
+# test_dataloader = dict(dataset=dict(pipeline=test_pipeline,
+# metainfo=metainfo))
+# eval_dataloader = dict(dataset=dict(pipeline=test_pipeline,
+# metainfo=metainfo))
 train_dataloader = dict(
-    batch_size=1,
-    num_workers=1,
+    batch_size=2,
+    num_workers=2,
     dataset=dict(
         # times=1,
         dataset=dict(pipeline=train_pipeline)))
@@ -319,17 +324,17 @@ param_scheduler = [
     # lr * 1e-4
     dict(
         type='CosineAnnealingLR',
-        T_max=16,
+        T_max=15,
         eta_min=lr * 10,
         begin=0,
-        end=16,
+        end=15,
         by_epoch=True,
         convert_to_iter_based=True),
     dict(
         type='CosineAnnealingLR',
-        T_max=24,
+        T_max=25,
         eta_min=lr * 1e-4,
-        begin=16,
+        begin=15,
         end=40,
         by_epoch=True,
         convert_to_iter_based=True),
@@ -338,17 +343,17 @@ param_scheduler = [
     # during the next 24 epochs, momentum increases from 0.85 / 0.95 to 1
     dict(
         type='CosineAnnealingMomentum',
-        T_max=16,
+        T_max=15,
         eta_min=0.85 / 0.95,
         begin=0,
-        end=16,
+        end=15,
         by_epoch=True,
         convert_to_iter_based=True),
     dict(
         type='CosineAnnealingMomentum',
-        T_max=24,
+        T_max=25,
         eta_min=1,
-        begin=16,
+        begin=15,
         end=40,
         by_epoch=True,
         convert_to_iter_based=True)
