@@ -5,7 +5,10 @@ from typing import Callable, List, Optional, Union
 
 import mmengine
 import numpy as np
+import torch
 from mmengine.dataset import BaseDataset
+from mmengine.logging import print_log
+from terminaltables import AsciiTable
 
 from mmdet3d.datasets import DATASETS
 from mmdet3d.structures import get_box_type
@@ -26,11 +29,11 @@ class Det3DDataset(BaseDataset):
         metainfo (dict, optional): Meta information for dataset, such as class
             information. Defaults to None.
         data_prefix (dict, optional): Prefix for training data. Defaults to
-            dict(pts='velodyne', img="").
+            dict(pts='velodyne', img='').
         pipeline (list[dict], optional): Pipeline used for data processing.
             Defaults to None.
         modality (dict, optional): Modality to specify the sensor data used
-            as input, it usually has following keys.
+            as input, it usually has following keys:
 
                 - use_camera: bool
                 - use_lidar: bool
@@ -40,7 +43,7 @@ class Det3DDataset(BaseDataset):
         box_type_3d (str, optional): Type of 3D box of this dataset.
             Based on the `box_type_3d`, the dataset will encapsulate the box
             to its original format then converted them to `box_type_3d`.
-            Defaults to 'LiDAR'. Available options includes
+            Defaults to 'LiDAR'. Available options includes:
 
             - 'LiDAR': Box in LiDAR coordinates, usually for
               outdoor point cloud 3d detection.
@@ -49,15 +52,18 @@ class Det3DDataset(BaseDataset):
             - 'Camera': Box in camera coordinates, usually
               for vision-based 3d detection.
 
-        filter_empty_gt (bool): Whether to filter the data with
+        filter_empty_gt (bool, optional): Whether to filter the data with
             empty GT. Defaults to True.
-        test_mode (bool): Whether the dataset is in test mode.
+        test_mode (bool, optional): Whether the dataset is in test mode.
             Defaults to False.
-        load_eval_anns (bool): Whether to load annotations
-            in test_mode, the annotation will be save in
-            `eval_ann_infos`, which can be use in Evaluator.
-        file_client_args (dict): Configuration of file client.
-            Defaults to `dict(backend='disk')`.
+        load_eval_anns (bool, optional): Whether to load annotations
+            in test_mode, the annotation will be save in `eval_ann_infos`,
+            which can be used in Evaluator. Defaults to True.
+        file_client_args (dict, optional): Configuration of file client.
+            Defaults to dict(backend='disk').
+        show_ins_var (bool, optional): For debug purpose. Whether to show
+            variation of the number of instances before and after through
+            pipeline. Defaults to False.
     """
 
     def __init__(self,
@@ -73,7 +79,8 @@ class Det3DDataset(BaseDataset):
                  test_mode: bool = False,
                  load_eval_anns=True,
                  file_client_args: dict = dict(backend='disk'),
-                 **kwargs):
+                 show_ins_var: bool = False,
+                 **kwargs) -> None:
         # init file client
         self.file_client = mmengine.FileClient(**file_client_args)
         self.filter_empty_gt = filter_empty_gt
@@ -105,12 +112,19 @@ class Det3DDataset(BaseDataset):
             for label_idx, name in enumerate(metainfo['CLASSES']):
                 ori_label = self.METAINFO['CLASSES'].index(name)
                 self.label_mapping[ori_label] = label_idx
+
+            self.num_ins_per_cat = {name: 0 for name in metainfo['CLASSES']}
         else:
             self.label_mapping = {
                 i: i
                 for i in range(len(self.METAINFO['CLASSES']))
             }
             self.label_mapping[-1] = -1
+
+            self.num_ins_per_cat = {
+                name: 0
+                for name in self.METAINFO['CLASSES']
+            }
 
         super().__init__(
             ann_file=ann_file,
@@ -124,6 +138,21 @@ class Det3DDataset(BaseDataset):
         # can be accessed by other component in runner
         self.metainfo['box_type_3d'] = box_type_3d
         self.metainfo['label_mapping'] = self.label_mapping
+
+        # used for showing variation of the number of instances before and
+        # after through the pipeline
+        self.show_ins_var = show_ins_var
+
+        # show statistics of this dataset
+        print_log('-' * 30, 'current')
+        print_log(f'The length of the dataset: {len(self)}', 'current')
+        content_show = [['category', 'number']]
+        for cat_name, num in self.num_ins_per_cat.items():
+            content_show.append([cat_name, num])
+        table = AsciiTable(content_show)
+        print_log(
+            f'The number of instances per category in the dataset:\n{table.table}',  # noqa: E501
+            'current')
 
     def _remove_dontcare(self, ann_info):
         """Remove annotations that do not need to be cared.
@@ -192,7 +221,8 @@ class Det3DDataset(BaseDataset):
             'bbox_3d': 'gt_bboxes_3d',
             'depth': 'depths',
             'center_2d': 'centers_2d',
-            'attr_label': 'attr_labels'
+            'attr_label': 'attr_labels',
+            'velocity': 'velocities',
         }
         instances = info['instances']
         # empty gt
@@ -209,15 +239,24 @@ class Det3DDataset(BaseDataset):
                         self.label_mapping[item] for item in temp_anns
                     ]
                 if ann_name in name_mapping:
-                    ann_name = name_mapping[ann_name]
+                    mapped_ann_name = name_mapping[ann_name]
+                else:
+                    mapped_ann_name = ann_name
 
                 if 'label' in ann_name:
                     temp_anns = np.array(temp_anns).astype(np.int64)
-                else:
+                elif ann_name in name_mapping:
                     temp_anns = np.array(temp_anns).astype(np.float32)
+                else:
+                    temp_anns = np.array(temp_anns)
 
-                ann_info[ann_name] = temp_anns
+                ann_info[mapped_ann_name] = temp_anns
             ann_info['instances'] = info['instances']
+
+            for label in ann_info['gt_labels_3d']:
+                cat_name = self.metainfo['CLASSES'][label]
+                self.num_ins_per_cat[cat_name] += 1
+
         return ann_info
 
     def parse_data_info(self, info: dict) -> dict:
@@ -241,6 +280,7 @@ class Det3DDataset(BaseDataset):
                     self.data_prefix.get('pts', ''),
                     info['lidar_points']['lidar_path'])
 
+            info['num_pts_feats'] = info['lidar_points']['num_pts_feats']
             info['lidar_path'] = info['lidar_points']['lidar_path']
             if 'lidar_sweeps' in info:
                 for sweep in info['lidar_sweeps']:
@@ -285,7 +325,32 @@ class Det3DDataset(BaseDataset):
 
         return info
 
-    def prepare_data(self, index):
+    def _show_ins_var(self, old_labels: np.ndarray, new_labels: torch.Tensor):
+        """Show variation of the number of instances before and after through
+        the pipeline.
+
+        Args:
+            old_labels (np.ndarray): The labels before through the pipeline.
+            new_labels (torch.Tensor): The labels after through the pipeline.
+        """
+        ori_num_per_cat = dict()
+        for label in old_labels:
+            cat_name = self.metainfo['CLASSES'][label]
+            ori_num_per_cat[cat_name] = ori_num_per_cat.get(cat_name, 0) + 1
+        new_num_per_cat = dict()
+        for label in new_labels:
+            cat_name = self.metainfo['CLASSES'][label]
+            new_num_per_cat[cat_name] = new_num_per_cat.get(cat_name, 0) + 1
+        content_show = [['category', 'new number', 'ori number']]
+        for cat_name, num in ori_num_per_cat.items():
+            new_num = new_num_per_cat.get(cat_name, 0)
+            content_show.append([cat_name, new_num, num])
+        table = AsciiTable(content_show)
+        print_log(
+            'The number of instances per category after and before '
+            f'through pipeline:\n{table.table}', 'current')
+
+    def prepare_data(self, index: int) -> Optional[dict]:
         """Data preparation for both training and testing stage.
 
         Called by `__getitem__`  of dataset.
@@ -294,12 +359,12 @@ class Det3DDataset(BaseDataset):
             index (int): Index for accessing the target data.
 
         Returns:
-            dict: Data dict of the corresponding index.
+            dict | None: Data dict of the corresponding index.
         """
-        input_dict = self.get_data_info(index)
+        ori_input_dict = self.get_data_info(index)
 
         # deepcopy here to avoid inplace modification in pipeline.
-        input_dict = copy.deepcopy(input_dict)
+        input_dict = copy.deepcopy(ori_input_dict)
 
         # box_type_3d (str): 3D box type.
         input_dict['box_type_3d'] = self.box_type_3d
@@ -312,12 +377,19 @@ class Det3DDataset(BaseDataset):
                 return None
 
         example = self.pipeline(input_dict)
+
         if not self.test_mode and self.filter_empty_gt:
             # after pipeline drop the example with empty annotations
             # return None to random another in `__getitem__`
             if example is None or len(
                     example['data_samples'].gt_instances_3d.labels_3d) == 0:
                 return None
+
+        if self.show_ins_var:
+            self._show_ins_var(
+                ori_input_dict['ann_info']['gt_labels_3d'],
+                example['data_samples'].gt_instances_3d.labels_3d)
+
         return example
 
     def get_cat_ids(self, idx: int) -> List[int]:
