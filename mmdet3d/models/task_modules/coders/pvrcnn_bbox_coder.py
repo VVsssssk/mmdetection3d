@@ -12,10 +12,12 @@ class PVRCNNBoxCoder(BaseBBoxCoder):
     Args:
         code_size (int): The dimension of boxes to be encoded.
     """
+    BTTOM_CENTER = False
 
-    def __init__(self, code_size=7):
+    def __init__(self, code_size=7, bottom_center=True):
         super(PVRCNNBoxCoder, self).__init__()
         self.code_size = code_size
+        BTTOM_CENTER = bottom_center
 
     @staticmethod
     def encode(src_boxes, dst_boxes):
@@ -85,6 +87,8 @@ class PVRCNNBoxCoder(BaseBBoxCoder):
         wg = torch.exp(wt) * wa
         hg = torch.exp(ht) * ha
         rg = rt + ra
-        zg = zg - hg / 2
+        # if PVRCNNBoxCoder.BTTOM_CENTER:
+        #     zg = zg - hg / 2
+        # zg = zg - hg / 2
         cgs = [t + a for t, a in zip(cts, cas)]
         return torch.cat([xg, yg, zg, wg, lg, hg, rg, *cgs], dim=-1)

@@ -343,10 +343,9 @@ class PVRCNNBboxHead(BaseModule):
                        dim=2))  # (N, 8)
         # huber loss
         abs_error = torch.abs(corner_dist)
-        quadratic = torch.clamp(abs_error, max=delta)
-        linear = (abs_error - quadratic)
-        corner_loss = 0.5 * quadratic**2 + delta * linear
-
+        corner_loss = torch.where(abs_error < delta,
+                                  0.5 * abs_error**2 / delta,
+                                  abs_error - 0.5 * delta)
         return corner_loss.mean(dim=1)
 
     def get_results(self,
@@ -379,8 +378,7 @@ class PVRCNNBboxHead(BaseModule):
         roi_xyz = roi_boxes[..., 0:3].view(-1, 3)
         local_roi_boxes = roi_boxes.clone().detach()
         local_roi_boxes[..., 0:3] = 0
-        batch_box_preds = self.bbox_coder.decode(
-            local_roi_boxes, bbox_reg)
+        batch_box_preds = self.bbox_coder.decode(local_roi_boxes, bbox_reg)
         batch_box_preds[..., 0:3] = rotation_3d_in_axis(
             batch_box_preds[..., 0:3].unsqueeze(1), roi_ry, axis=2).squeeze(1)
         batch_box_preds[:, 0:3] += roi_xyz

@@ -912,8 +912,11 @@ class PointsRangeFilter(BaseTransform):
         point_cloud_range (list[float]): Point cloud range.
     """
 
-    def __init__(self, point_cloud_range: List[float]) -> None:
+    def __init__(self,
+                 point_cloud_range: List[float],
+                 mask_on_bev=False) -> None:
         self.pcd_range = np.array(point_cloud_range, dtype=np.float32)
+        self.mask_on_bev = mask_on_bev
 
     def transform(self, input_dict: dict) -> dict:
         """Transform function to filter points by the range.

@@ -86,7 +86,7 @@ class PointVoxelRCNN(TwoStage3DDetector):
                                                 batch_data_samples)
 
         # connvert to Det3DDataSample
-        results_list = self.convert_to_datasample(batch_data_samples,
+        results_list = self.add_pred_to_datasample(batch_data_samples,
                                                   results_list_3d)
 
         return results_list

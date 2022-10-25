@@ -1,4 +1,5 @@
 import mmcv
+import mmengine
 import torch
 
 from mmdet3d.registry import MODELS
@@ -16,7 +17,7 @@ dist_map = [
 
 def main():
     register_all_modules()
-    cfg = mmcv.Config.fromfile('configs/pvrcnn/pvrcnn_kitti-3d-3class.py')
+    cfg = mmengine.Config.fromfile('configs/pvrcnn/pvrcnn_kitti-3d-3class.py')
     mmdet_model = MODELS.build(cfg.model).state_dict()
     pcd_model = torch.load('./pv_rcnn_8369.pth')['model_state']
     pcd_model.pop('global_step')

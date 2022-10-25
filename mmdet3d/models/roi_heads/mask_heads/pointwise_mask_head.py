@@ -15,9 +15,9 @@ class PointwiseMaskHead(BaseModule):
 
     def __init__(self,
                  in_channels,
-                 num_classes=3,
+                 num_classes=1,
                  mlps=(256, 256),
-                 extra_width=0.2,
+                 extra_width=0.1,
                  class_agnostic=False,
                  norm_cfg=dict(type='BN1d', eps=1e-5, momentum=0.1),
                  init_cfg=None,
@@ -48,7 +48,8 @@ class PointwiseMaskHead(BaseModule):
             mlps_layers.extend([
                 nn.Linear(cin, cout, bias=False),
                 build_norm_layer(norm_cfg, cout)[1],
-                nn.ReLU()])
+                nn.ReLU()
+            ])
             cin = cout
         mlps_layers.append(nn.Linear(cin, self.out_channels, bias=True))
 
@@ -76,21 +77,22 @@ class PointwiseMaskHead(BaseModule):
             tuple[torch.Tensor]: Segmentation targets with shape [voxel_num]
                 part prediction targets with shape [voxel_num, 3]
         """
-        gt_bboxes_3d = gt_bboxes_3d.to(point_xyz.device)
+        point_cls_labels_single = point_xyz.new_zeros(
+            point_xyz.shape[0]).long()
         enlarged_gt_boxes = gt_bboxes_3d.enlarged_box(self.extra_width)
 
-        box_idx = gt_bboxes_3d.points_in_boxes_part(point_xyz).long()
-        enlarge_box_idx = enlarged_gt_boxes.points_in_boxes_part(
+        box_idxs_of_pts = gt_bboxes_3d.points_in_boxes_part(point_xyz).long()
+        extend_box_idxs_of_pts = enlarged_gt_boxes.points_in_boxes_part(
             point_xyz).long()
-
-        gt_labels_pad = F.pad(
-            gt_labels_3d, (1, 0), mode='constant', value=self.num_classes)
-        seg_targets = gt_labels_pad[(box_idx + 1)]
-        fg_pt_flag = box_idx > -1
-        ignore_flag = fg_pt_flag ^ (enlarge_box_idx > -1)
-        seg_targets[ignore_flag] = -1
-
-        return seg_targets,
+        box_fg_flag = box_idxs_of_pts >= 0
+        fg_flag = box_fg_flag.clone()
+        ignore_flag = fg_flag ^ (extend_box_idxs_of_pts >= 0)
+        point_cls_labels_single[ignore_flag] = -1
+        gt_box_of_fg_points = gt_labels_3d[box_idxs_of_pts[fg_flag]]
+        point_cls_labels_single[
+            fg_flag] = 1 if self.num_classes == 1 else gt_box_of_fg_points.long(
+            )
+        return point_cls_labels_single,
 
     def get_targets(self, points_bxyz, batch_gt_instances_3d):
         """generate segmentation and part prediction targets.
@@ -129,20 +131,13 @@ class PointwiseMaskHead(BaseModule):
         seg_preds = semantic_results['seg_preds']
         seg_targets = semantic_targets['seg_targets']
 
-        pos_mask = (seg_targets > -1) & (seg_targets < self.num_classes)
+        positives = (seg_targets > 0)
 
-        pos = pos_mask.float()
-        neg = (seg_targets == self.num_classes).float()
-        seg_weights = pos + neg
-        pos_normalizer = pos.sum()
-        seg_weights = seg_weights / torch.clamp(pos_normalizer, min=1.0)
+        negative_cls_weights = (seg_targets == 0).float()
+        seg_weights = (negative_cls_weights + 1.0 * positives).float()
+        pos_normalizer = positives.sum(dim=0).float()
+        seg_weights /= torch.clamp(pos_normalizer, min=1.0)
 
-        if self.class_agnostic:
-            seg_cls_target = pos_mask.long()
-        else:
-            seg_cls_target = seg_targets.masked_fill(
-                seg_targets < 0, self.num_classes)
-
-        loss_seg = self.loss_seg(seg_preds, seg_cls_target, seg_weights)
-
+        seg_preds = torch.sigmoid(seg_preds)
+        loss_seg = self.loss_seg(seg_preds, (~positives).long(), seg_weights)
         return dict(loss_semantic=loss_seg)

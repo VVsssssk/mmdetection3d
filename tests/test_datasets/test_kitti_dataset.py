@@ -1,108 +1,143 @@
-# Copyright (c) OpenMMLab. All rights reserved.
+tensor(82933.4844, device='cuda:0')
+point_bev_features: tensor(37229.7461, device='cuda:0')
+pooled_features: tensor(73227.1562, device='cuda:0')
+voxel_encode_features0: tensor(71103.4531, device='cuda:0')
+pooled_features0: tensor(59361.9648, device='cuda:0')
+voxel_encode_features1: tensor(173550.1250, device='cuda:0')
+pooled_features1: tensor(49360.9570, device='cuda:0')
+voxel_encode_features2: tensor(82281.6641, device='cuda:0')
+pooled_features2: tensor(76148.5859, device='cuda:0')
+voxel_encode_features3: tensor(93328.3281, device='cuda:0')
+pooled_features3: tensor(94469.5000, device='cuda:0')
+point_features_before_fusion tensor(389797.9375, device='cuda:0')
 
-import numpy as np
-import torch
-from mmcv.transforms.base import BaseTransform
-from mmengine.registry import TRANSFORMS
-from mmengine.structures import InstanceData
-
-from mmdet3d.datasets import KittiDataset
-from mmdet3d.structures import Det3DDataSample, LiDARInstance3DBoxes
-
-
-def _generate_kitti_dataset_config():
-    data_root = 'tests/data/kitti'
-    ann_file = 'kitti_infos_train.pkl'
-    classes = ['Pedestrian', 'Cyclist', 'Car']
-    # wait for pipline refactor
-
-    if 'Identity' not in TRANSFORMS:
-
-        @TRANSFORMS.register_module()
-        class Identity(BaseTransform):
-
-            def transform(self, info):
-                if 'ann_info' in info:
-                    info['gt_labels_3d'] = info['ann_info']['gt_labels_3d']
-                data_sample = Det3DDataSample()
-                gt_instances_3d = InstanceData()
-                gt_instances_3d.labels_3d = info['gt_labels_3d']
-                data_sample.gt_instances_3d = gt_instances_3d
-                info['data_samples'] = data_sample
-                return info
-
-    pipeline = [
-        dict(type='Identity'),
-    ]
-
-    modality = dict(use_lidar=True, use_camera=False)
-    data_prefix = dict(pts='training/velodyne_reduced', img='training/image_2')
-    return data_root, ann_file, classes, data_prefix, pipeline, modality
-
-
-def test_getitem():
-    np.random.seed(0)
-    data_root, ann_file, classes, data_prefix, \
-        pipeline, modality, = _generate_kitti_dataset_config()
-    modality['use_camera'] = True
-
-    kitti_dataset = KittiDataset(
-        data_root,
-        ann_file,
-        data_prefix=dict(
-            pts='training/velodyne_reduced',
-            img='training/image_2',
-        ),
-        pipeline=pipeline,
-        metainfo=dict(CLASSES=classes),
-        modality=modality)
-
-    kitti_dataset.prepare_data(0)
-    input_dict = kitti_dataset.get_data_info(0)
-    kitti_dataset[0]
-    # assert the the path should contains data_prefix and data_root
-    assert data_prefix['pts'] in input_dict['lidar_points']['lidar_path']
-    assert data_root in input_dict['lidar_points']['lidar_path']
-    for cam_id, img_info in input_dict['images'].items():
-        if 'img_path' in img_info:
-            assert data_prefix['img'] in img_info['img_path']
-            assert data_root in img_info['img_path']
-
-    ann_info = kitti_dataset.parse_ann_info(input_dict)
-
-    # assert the keys in ann_info and the type
-    assert 'instances' in ann_info
-
-    # only one instance
-    assert 'gt_labels_3d' in ann_info
-    assert ann_info['gt_labels_3d'].dtype == np.int64
-
-    assert 'gt_bboxes_3d' in ann_info
-    assert isinstance(ann_info['gt_bboxes_3d'], LiDARInstance3DBoxes)
-    assert torch.allclose(ann_info['gt_bboxes_3d'].tensor.sum(),
-                          torch.tensor(7.2650))
-    assert 'centers_2d' in ann_info
-    assert ann_info['centers_2d'].dtype == np.float32
-    assert 'depths' in ann_info
-    assert ann_info['depths'].dtype == np.float32
-
-    car_kitti_dataset = KittiDataset(
-        data_root,
-        ann_file,
-        data_prefix=dict(
-            pts='training/velodyne_reduced',
-            img='training/image_2',
-        ),
-        pipeline=pipeline,
-        metainfo=dict(CLASSES=['Car']),
-        modality=modality)
-
-    input_dict = car_kitti_dataset.get_data_info(0)
-    ann_info = car_kitti_dataset.parse_ann_info(input_dict)
-
-    # assert the keys in ann_info and the type
-    assert 'instances' in ann_info
-    assert ann_info['gt_labels_3d'].dtype == np.int64
-    # all instance have been filtered by classes
-    assert len(ann_info['gt_labels_3d']) == 0
-    assert len(car_kitti_dataset.metainfo['CLASSES']) == 1
+  (voxel_sa_layers): ModuleList(
+    (0): GuidedSAModuleMSG(
+      (groupers): ModuleList(
+        (0): QueryAndGroup()
+        (1): QueryAndGroup()
+      )
+      (mlps): ModuleList(
+        (0): Sequential(
+          (layer0): ConvModule(
+            (conv): Conv2d(19, 16, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+          (layer1): ConvModule(
+            (conv): Conv2d(16, 16, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+        )
+        (1): Sequential(
+          (layer0): ConvModule(
+            (conv): Conv2d(19, 16, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+          (layer1): ConvModule(
+            (conv): Conv2d(16, 16, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+        )
+      )
+    )
+    (1): GuidedSAModuleMSG(
+      (groupers): ModuleList(
+        (0): QueryAndGroup()
+        (1): QueryAndGroup()
+      )
+      (mlps): ModuleList(
+        (0): Sequential(
+          (layer0): ConvModule(
+            (conv): Conv2d(35, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+          (layer1): ConvModule(
+            (conv): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+        )
+        (1): Sequential(
+          (layer0): ConvModule(
+            (conv): Conv2d(35, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+          (layer1): ConvModule(
+            (conv): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+        )
+      )
+    )
+    (2): GuidedSAModuleMSG(
+      (groupers): ModuleList(
+        (0): QueryAndGroup()
+        (1): QueryAndGroup()
+      )
+      (mlps): ModuleList(
+        (0): Sequential(
+          (layer0): ConvModule(
+            (conv): Conv2d(67, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+          (layer1): ConvModule(
+            (conv): Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+        )
+        (1): Sequential(
+          (layer0): ConvModule(
+            (conv): Conv2d(67, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+          (layer1): ConvModule(
+            (conv): Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+        )
+      )
+    )
+    (3): GuidedSAModuleMSG(
+      (groupers): ModuleList(
+        (0): QueryAndGroup()
+        (1): QueryAndGroup()
+      )
+      (mlps): ModuleList(
+        (0): Sequential(
+          (layer0): ConvModule(
+            (conv): Conv2d(67, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+          (layer1): ConvModule(
+            (conv): Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+        )
+        (1): Sequential(
+          (layer0): ConvModule(
+            (conv): Conv2d(67, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+          (layer1): ConvModule(
+            (conv): Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+            (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (activate): ReLU(inplace=True)
+          )
+        )
+      )
+    )
+  )

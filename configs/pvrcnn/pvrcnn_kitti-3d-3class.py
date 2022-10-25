@@ -7,7 +7,7 @@ voxel_size = [0.05, 0.05, 0.1]
 point_cloud_range = [0, -40, -3, 70.4, 40, 1]
 
 data_root = 'data/kitti/'
-class_names = ['Pedestrian', 'Cyclist', 'Car']
+class_names = ['Car', 'Pedestrian', 'Cyclist']
 metainfo = dict(CLASSES=class_names)
 db_sampler = dict(
     data_root=data_root,
@@ -32,8 +32,7 @@ train_pipeline = [
         scale_ratio_range=[0.95, 1.05]),
     dict(
         type='PointsRangeFilter',
-        point_cloud_range=point_cloud_range,
-        mask_on_bev=True),
+        point_cloud_range=point_cloud_range, mask_on_bev=True),
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
     dict(type='PointShuffle'),
     dict(
@@ -55,7 +54,7 @@ test_pipeline = [
                 translation_std=[0, 0, 0]),
             dict(type='RandomFlip3D'),
             dict(
-                type='PointsRangeFilter', point_cloud_range=point_cloud_range)
+                type='PointsRangeFilter', point_cloud_range=point_cloud_range, mask_on_bev=True)
         ]),
     dict(type='Pack3DDetInputs', keys=['points'])
 ]
@@ -135,17 +134,20 @@ model = dict(
         in_channels=512,
         feat_channels=512,
         use_direction_classifier=True,
-        # dir_offset=0.78539,
+        dir_offset=0.78539,
         anchor_generator=dict(
             type='Anchor3DRangeGenerator',
-            # ranges=[[0, -40.0, 0.265, 70.4, 40.0, 0.265],
-            #         [0, -40.0, 0.265, 70.4, 40.0, 0.265],
-            #         [0, -40.0, -1, 70.4, 40.0, -1]],
-            # sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
-            ranges=[[0, -40.0, -0.6, 70.4, 40.0, -0.6],
+            # ranges=[[0.2, -39.8, -1.78, 70.2, 39.8, -1.78],
+            #         [0.2, -39.8, -0.6, 70.2, 39.8, -0.6],
+            #         [0.2, -39.8, -0.6, 70.2, 39.8, -0.6]],
+            # sizes=[[3.9, 1.6, 1.56], [0.8, 0.6, 1.73], [1.76, 0.6, 1.73]],
+            # ranges=[[0, -40.0, -1, 70.4, 40.0, -1]
+            #     ,[0, -40.0, 0.265, 70.4, 40.0, 0.265],
+            #         [0, -40.0, 0.265, 70.4, 40.0, 0.265]],
+            ranges=[[0, -40.0, -1.78, 70.4, 40.0, -1.78],
                     [0, -40.0, -0.6, 70.4, 40.0, -0.6],
-                    [0, -40.0, -1.78, 70.4, 40.0, -1.78]],
-            sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
+                    [0, -40.0, -0.6, 70.4, 40.0, -0.6]],
+            sizes=[[3.9, 1.6, 1.56],[0.8, 0.6, 1.73], [1.76, 0.6, 1.73]],
             rotations=[0, 1.57],
             reshape_out=False),
         diff_rad_by_sin=True,
@@ -170,7 +172,7 @@ model = dict(
         semantic_head=dict(
             type='PointwiseMaskHead',
             in_channels=640,
-            extra_width=0.2,
+            extra_width=0.1,
             class_agnostic=True,
             loss_seg=dict(
                 type='mmdet.FocalLoss',
@@ -178,6 +180,7 @@ model = dict(
                 reduction='sum',
                 gamma=2.0,
                 alpha=0.25,
+                activated=True,
                 loss_weight=1.0)),
         bbox_roi_extractor=dict(
             type='Batch3DRoIGridExtractor',
@@ -213,6 +216,13 @@ model = dict(
     train_cfg=dict(
         rpn=dict(
             assigner=[
+                dict(  # for Car
+                    type='Max3DIoUAssigner',
+                    iou_calculator=dict(type='BboxOverlapsNearest3D'),
+                    pos_iou_thr=0.6,
+                    neg_iou_thr=0.45,
+                    min_pos_iou=0.45,
+                    ignore_iof_thr=-1),
                 dict(  # for Pedestrian
                     type='Max3DIoUAssigner',
                     iou_calculator=dict(type='BboxOverlapsNearest3D'),
@@ -226,13 +236,6 @@ model = dict(
                     pos_iou_thr=0.5,
                     neg_iou_thr=0.35,
                     min_pos_iou=0.35,
-                    ignore_iof_thr=-1),
-                dict(  # for Car
-                    type='Max3DIoUAssigner',
-                    iou_calculator=dict(type='BboxOverlapsNearest3D'),
-                    pos_iou_thr=0.6,
-                    neg_iou_thr=0.45,
-                    min_pos_iou=0.45,
                     ignore_iof_thr=-1)
             ],
             allowed_border=0,
@@ -247,6 +250,14 @@ model = dict(
             use_rotate_nms=True),
         rcnn=dict(
             assigner=[
+                dict(  # for Car
+                    type='Max3DIoUAssigner',
+                    iou_calculator=dict(
+                        type='BboxOverlaps3D', coordinate='lidar'),
+                    pos_iou_thr=0.55,
+                    neg_iou_thr=0.55,
+                    min_pos_iou=0.55,
+                    ignore_iof_thr=-1),
                 dict(  # for Pedestrian
                     type='Max3DIoUAssigner',
                     iou_calculator=dict(
@@ -262,20 +273,12 @@ model = dict(
                     pos_iou_thr=0.55,
                     neg_iou_thr=0.55,
                     min_pos_iou=0.55,
-                    ignore_iof_thr=-1),
-                dict(  # for Car
-                    type='Max3DIoUAssigner',
-                    iou_calculator=dict(
-                        type='BboxOverlaps3D', coordinate='lidar'),
-                    pos_iou_thr=0.55,
-                    neg_iou_thr=0.55,
-                    min_pos_iou=0.55,
                     ignore_iof_thr=-1)
             ],
             sampler=dict(
                 type='IoUNegPiecewiseSampler',
                 num=128,
-                pos_fraction=0.55,
+                pos_fraction=0.5,
                 neg_piece_fractions=[0.8, 0.2],
                 neg_iou_piece_thrs=[0.55, 0.1],
                 neg_pos_ub=-1,
@@ -294,7 +297,7 @@ model = dict(
         rcnn=dict(
             use_rotate_nms=True,
             use_raw_score=True,
-            nms_thr=0.01,
+            nms_thr=0.1,
             score_thr=0.1)))
 # train_dataloader = dict(
 #     batch_size=1,
@@ -311,9 +314,9 @@ train_dataloader = dict(
     num_workers=2,
     dataset=dict(
         # times=1,
-        dataset=dict(pipeline=train_pipeline)))
-test_dataloader = dict(dataset=dict(pipeline=test_pipeline))
-eval_dataloader = dict(dataset=dict(pipeline=test_pipeline))
+        dataset=dict(pipeline=train_pipeline, metainfo=metainfo)))
+test_dataloader = dict(dataset=dict(pipeline=test_pipeline,metainfo=metainfo))
+eval_dataloader = dict(dataset=dict(pipeline=test_pipeline,metainfo=metainfo))
 lr = 0.001
 # train_cfg = dict(max_epochs=80)
 optim_wrapper = dict(optimizer=dict(lr=lr))
@@ -358,3 +361,6 @@ param_scheduler = [
         by_epoch=True,
         convert_to_iter_based=True)
 ]
+
+# randomness = dict(seed=666)
+# load_from = '/home/PJLAB/shenkun/package/refactor_dir/mmdetection3d/checkpoints/new_pvrcnn.pth'

@@ -106,8 +106,7 @@ class QueryAndGroup(nn.Module):
     def __init__(self,
                  radius: float,
                  nsample: int,
-                 use_xyz: bool = True,
-                 debug: bool = False):
+                 use_xyz: bool = True):
         """
         Args:
             radius: float, radius of ball
@@ -116,14 +115,14 @@ class QueryAndGroup(nn.Module):
         """
         super().__init__()
         self.radius, self.nsample, self.use_xyz = radius, nsample, use_xyz
-        self.debug = debug
 
     def forward(self,
                 xyz: torch.Tensor,
                 xyz_batch_cnt: torch.Tensor,
                 new_xyz: torch.Tensor,
                 new_xyz_batch_cnt: torch.Tensor,
-                features: torch.Tensor = None):
+                features: torch.Tensor = None,
+                debug=False):
         """
         Args:
             xyz: (N1 + N2 ..., 3) xyz coordinates of the features
@@ -146,46 +145,24 @@ class QueryAndGroup(nn.Module):
         idx, empty_ball_mask = ball_query(self.radius, self.nsample, xyz,
                                           xyz_batch_cnt, new_xyz,
                                           new_xyz_batch_cnt)
+        if debug:
+            print('----idx',idx.abs().sum())
         grouped_xyz = grouping(xyz, xyz_batch_cnt, idx,
                                new_xyz_batch_cnt)  # (M1 + M2, 3, nsample)
-        if self.debug:
-            import numpy as np
-            import open3d as o3d
-            kpts = new_xyz.cpu().detach().numpy().astype(np.float64)
-            pts = grouped_xyz.cpu().detach().numpy().astype(np.float64)
-
-            old = 0
-            for cnt in new_xyz_batch_cnt:
-                b_kpts = kpts[old:old + cnt]
-                b_pts = pts[old:old + cnt].transpose(0, 2, 1).reshape(-1, 3)
-                old += cnt
-
-                kpc = o3d.geometry.PointCloud(
-                    points=o3d.utility.Vector3dVector(b_kpts))
-                pc = o3d.geometry.PointCloud(
-                    points=o3d.utility.Vector3dVector(b_pts))
-
-                kcolor = np.zeros_like(b_kpts)
-                kcolor[..., 2] = 1
-                kcolor = o3d.utility.Vector3dVector(kcolor)
-                kpc.colors = kcolor
-
-                color = np.zeros_like(b_pts)
-                color[..., 0] = 1
-                color = o3d.utility.Vector3dVector(color)
-                pc.colors = color
-
-                o3d.visualization.draw_geometries([pc, kpc])
-
+        if debug:
+            print('----grouped_xyz',grouped_xyz.abs().sum())
         grouped_xyz -= new_xyz.unsqueeze(-1)
 
         grouped_xyz[empty_ball_mask] = 0
-
+        if debug:
+            print('----grouped_xyz',grouped_xyz.abs().sum())
         if features is not None:
             grouped_features = grouping(
                 features, xyz_batch_cnt, idx,
                 new_xyz_batch_cnt)  # (M1 + M2, C, nsample)
             grouped_features[empty_ball_mask] = 0
+            if debug:
+                print('----grouped_features', grouped_features.abs().sum())
             if self.use_xyz:
                 new_features = torch.cat(
                     [grouped_xyz, grouped_features],
@@ -195,7 +172,8 @@ class QueryAndGroup(nn.Module):
         else:
             assert self.use_xyz, 'Cannot have not features and not use xyz as a feature!'
             new_features = grouped_xyz
-
+        if debug:
+            print('----new_features', new_features.abs().sum())
         return new_features, idx
 
 
@@ -208,6 +186,7 @@ class GuidedSAModuleMSG(nn.Module):
                  mlps: List[List[int]],
                  use_xyz: bool = True,
                  pool_method='max',
+                 debug=False,
                  norm_cfg: dict = dict(type='BN2d', eps=1e-5, momentum=0.01)):
         """
         Args:
@@ -217,6 +196,7 @@ class GuidedSAModuleMSG(nn.Module):
             use_xyz:
             pool_method: max / avg
         """
+        self.debug = debug
         super().__init__()
         assert len(radii) == len(nsamples) == len(mlps)
 
@@ -278,21 +258,37 @@ class GuidedSAModuleMSG(nn.Module):
             new_xyz: (M1 + M2 ..., 3) tensor of the new features' xyz
             new_features: (M1 + M2 ..., \sum_k(mlps[k][-1])) tensor of the new_features descriptors
         """
+        if self.debug:
+            # print('--sa_module:',self)
+            print('--xyz:',xyz.abs().sum())
+            print('--new_xyz:',new_xyz.abs().sum())
+            print('--features:',features.abs().sum())
         new_features_list = []
         for k in range(len(self.groupers)):
-            new_features, ball_idxs = self.groupers[k](
-                xyz, xyz_batch_cnt, new_xyz, new_xyz_batch_cnt,
-                features)  # (M1 + M2, Cin, nsample)
+            if self.debug:
+                new_features, ball_idxs = self.groupers[k](
+                    xyz, xyz_batch_cnt, new_xyz, new_xyz_batch_cnt,
+                    features,debug=True)
+            else:
+                new_features, ball_idxs = self.groupers[k](
+                    xyz, xyz_batch_cnt, new_xyz, new_xyz_batch_cnt,
+                    features)  # (M1 + M2, Cin, nsample)
+            if self.debug:
+                print('--self.groupers',self.groupers[k].radius,self.groupers[k].nsample,self.groupers[k].use_xyz)
+                print('--new_features:', new_features.abs().sum())
             new_features = new_features.permute(1, 0, 2).unsqueeze(dim=0)
             new_features = self.mlps[k](new_features)
             # (M1 + M2 ..., Cout, nsample)
-
+            if self.debug:
+                print('--new_features:', new_features.abs().sum())
             if self.pool_method == 'max':
                 new_features = new_features.max(-1).values
             elif self.pool_method == 'avg':
                 new_features = new_features.mean(-1)
             else:
                 raise NotImplementedError
+            if self.debug:
+                print('--new_features:', new_features.abs().sum())
             new_features = new_features.squeeze(dim=0).permute(1, 0)
             new_features_list.append(new_features)
 

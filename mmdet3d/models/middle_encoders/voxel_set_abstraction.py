@@ -6,14 +6,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn.bricks import build_norm_layer
 from mmcv.ops import PointsSampler, gather_points
+from mmcv.ops.furthest_point_sample import furthest_point_sample
 from mmengine.model import BaseModule, ModuleList
 from torch import Tensor
 
 from mmdet3d.models.layers.pointnet_modules import build_sa_module
+from mmdet3d.models.layers.pointnet_modules.pointnet2_modules import \
+    GuidedSAModuleMSG
 from mmdet3d.registry import MODELS
 from mmdet3d.structures.det3d_data_sample import InstanceData
-from mmdet3d.models.layers.pointnet_modules.pointnet2_modules import GuidedSAModuleMSG
-from mmcv.ops.furthest_point_sample import furthest_point_sample
+
+
 def bilinear_interpolate_torch(im, x, y):
     """Bilinear interpolate for.
 
@@ -80,10 +83,16 @@ class VoxelSetAbstraction(BaseModule):
             used dict(type='BN1d', eps=1e-5, momentum=0.1)
     """
 
-    def __init__(self, num_keypoints, out_channels, voxel_size,
-                 point_cloud_range, voxel_sa_configs, rawpoint_sa_config=None,
-                 bev_sa_config=None, voxel_center_as_source=False,
-                 norm_cfg=dict(type='BN2d', eps=1e-5, momentum=0.01),
+    def __init__(self,
+                 num_keypoints,
+                 out_channels,
+                 voxel_size,
+                 point_cloud_range,
+                 voxel_sa_configs,
+                 rawpoint_sa_config=None,
+                 bev_sa_config=None,
+                 voxel_center_as_source=False,
+                 norm_cfg=dict(type='BN2d', eps=1e-5, momentum=0.1),
                  voxel_center_align='half',
                  debug=False):
         super().__init__()
@@ -124,7 +133,8 @@ class VoxelSetAbstraction(BaseModule):
                 mlps=voxel_sa_config.mlps,
                 use_xyz=True,
                 pool_method='max',
-                norm_cfg=norm_cfg)
+                norm_cfg=norm_cfg,
+                debug=False)
             self.voxel_sa_layers.append(cur_layer)
             gathered_channels += sum([x[-1] for x in voxel_sa_config.mlps])
 
@@ -133,38 +143,13 @@ class VoxelSetAbstraction(BaseModule):
             self.bev_sa = True
             gathered_channels += bev_sa_config.in_channels
 
-        norm_cfg=dict(type='BN1d', eps=1e-5, momentum=0.01)
+        norm_cfg = dict(type='BN1d', eps=1e-5, momentum=0.1)
         self.point_feature_fusion = nn.Sequential(
             nn.Linear(gathered_channels, out_channels, bias=False),
-            build_norm_layer(norm_cfg, out_channels)[1],
-            nn.ReLU())
+            build_norm_layer(norm_cfg, out_channels)[1], nn.ReLU())
 
-    # def interpolate_from_bev_features(self, keypoints, bev_features,
-    #                                   scale_factor):
-    #     _, _, y_grid, x_grid = bev_features.shape
-    #
-    #     voxel_size_xy = keypoints.new_tensor(self.voxel_size[:2])
-    #
-    #     bev_tl_grid_cxy = keypoints.new_tensor(self.point_cloud_range[:2])
-    #     bev_br_grid_cxy = keypoints.new_tensor(self.point_cloud_range[3:5])
-    #     if self.voxel_center_align == 'half':
-    #         bev_tl_grid_cxy.add_(0.5 * voxel_size_xy * scale_factor)
-    #         bev_br_grid_cxy.sub_(0.5 * voxel_size_xy * scale_factor)
-    #     elif self.voxel_center_align == 'halfmin':
-    #         bev_tl_grid_cxy.add_(0.5 * voxel_size_xy)
-    #         bev_br_grid_cxy.sub_(voxel_size_xy * (scale_factor - 0.5))
-    #
-    #     xy = keypoints[..., :2]
-    #
-    #     grid_sample_xy = (xy - bev_tl_grid_cxy[None, None, :]) / (
-    #         (bev_br_grid_cxy - bev_tl_grid_cxy)[None, None, :])
-    #
-    #     grid_sample_xy = (grid_sample_xy * 2 - 1).unsqueeze(1)
-    #     point_bev_features = F.grid_sample(bev_features,
-    #                                        grid=grid_sample_xy,
-    #                                        align_corners=True)
-    #     return point_bev_features.squeeze(2).permute(0, 2, 1).contiguous()
-    def interpolate_from_bev_features(self, keypoints, bev_features, batch_size, bev_stride):
+    def interpolate_from_bev_features(self, keypoints, bev_features,
+                                      batch_size, bev_stride):
         """
         Args:
             keypoints: (N1 + N2 + ..., 4)
@@ -175,37 +160,36 @@ class VoxelSetAbstraction(BaseModule):
         Returns:
             point_bev_features: (N1 + N2 + ..., C)
         """
-        x_idxs = (keypoints[..., 0] - self.point_cloud_range[0]) / self.voxel_size[0]
-        y_idxs = (keypoints[..., 1] - self.point_cloud_range[1]) / self.voxel_size[1]
+        x_idxs = (keypoints[..., 0] -
+                  self.point_cloud_range[0]) / self.voxel_size[0]
+        y_idxs = (keypoints[..., 1] -
+                  self.point_cloud_range[1]) / self.voxel_size[1]
 
         x_idxs = x_idxs / bev_stride
         y_idxs = y_idxs / bev_stride
 
         point_bev_features_list = []
         for k in range(batch_size):
-            cur_x_idxs = x_idxs[k,...]
-            cur_y_idxs = y_idxs[k,...]
+            cur_x_idxs = x_idxs[k, ...]
+            cur_y_idxs = y_idxs[k, ...]
             cur_bev_features = bev_features[k].permute(1, 2, 0)  # (H, W, C)
-            point_bev_features = bilinear_interpolate_torch(cur_bev_features, cur_x_idxs, cur_y_idxs)
+            point_bev_features = bilinear_interpolate_torch(
+                cur_bev_features, cur_x_idxs, cur_y_idxs)
             point_bev_features_list.append(point_bev_features)
 
-        point_bev_features = torch.cat(point_bev_features_list, dim=0)  # (N1 + N2 + ..., C)
-        return point_bev_features.view(batch_size,keypoints.shape[1],-1)
+        point_bev_features = torch.cat(
+            point_bev_features_list, dim=0)  # (N1 + N2 + ..., C)
+        return point_bev_features.view(batch_size, keypoints.shape[1], -1)
 
     def get_voxel_centers(self, coors, scale_factor):
         assert coors.shape[1] == 4
         voxel_centers = coors[:, [3, 2, 1]].float()  # (xyz)
-        voxel_size = voxel_centers.new_tensor(self.voxel_size)
-        pc_range_min = voxel_centers.new_tensor(self.point_cloud_range[:3])
-
-        voxel_centers = voxel_centers * voxel_size * scale_factor + pc_range_min
-        voxel_centers.add_(0.5 * voxel_size * scale_factor)
-        # if self.voxel_center_align == 'half':
-        #     voxel_centers.add_(0.5 * voxel_size * scale_factor)
-        # elif self.voxel_center_align == 'halfmin':
-        #     voxel_centers.add_(0.5 * voxel_size)
-        # else:
-        #     raise NotImplementedError
+        voxel_size = torch.tensor(
+            self.voxel_size,
+            device=voxel_centers.device).float() * scale_factor
+        pc_range = torch.tensor(
+            self.point_cloud_range[0:3], device=voxel_centers.device).float()
+        voxel_centers = (voxel_centers + 0.5) * voxel_size + pc_range
         return voxel_centers
 
     def get_sampled_points(self, points, coors):
@@ -213,8 +197,9 @@ class VoxelSetAbstraction(BaseModule):
         if self.voxel_center_as_source:
             _src_points = self.get_voxel_centers(coors=coors, scale_factor=1)
             batch_size = coors[-1, 0].item() + 1
-            src_points = [_src_points[coors[:, 0] == b] for b in
-                          range(batch_size)]
+            src_points = [
+                _src_points[coors[:, 0] == b] for b in range(batch_size)
+            ]
         else:
             src_points = [p[..., :3] for p in points]
 
@@ -235,7 +220,6 @@ class VoxelSetAbstraction(BaseModule):
             keypoints_list.append(keypoints)
         keypoints = torch.stack(keypoints_list, dim=0)  # (B, M, 3)
         return keypoints
-
 
     def forward(self, batch_inputs_dict: dict, feats_dict: dict,
                 rpn_results_list: List[InstanceData]) -> dict:
@@ -265,9 +249,9 @@ class VoxelSetAbstraction(BaseModule):
         batch_size = len(points)
         if self.bev_sa:
             point_bev_features = self.interpolate_from_bev_features(
-                keypoints, bev_encode_features, batch_size, self.bev_sa_config.scale_factor)
-            point_features_list.append(point_bev_features)
-
+                keypoints, bev_encode_features, batch_size,
+                self.bev_sa_config.scale_factor)
+            point_features_list.append(point_bev_features.contiguous())
         batch_size, num_keypoints, _ = keypoints.shape
         key_xyz = keypoints.view(-1, 3)
         key_xyz_batch_cnt = key_xyz.new_zeros(batch_size).int().fill_(
@@ -289,15 +273,15 @@ class VoxelSetAbstraction(BaseModule):
                 new_xyz_batch_cnt=key_xyz_batch_cnt,
                 features=features.contiguous(),
             )
-            point_features_list.append(
-                pooled_features.view(batch_size, num_keypoints, -1))
+            point_features_list.append(pooled_features.contiguous().view(
+                batch_size, num_keypoints, -1))
 
         for k, voxel_sa_layer in enumerate(self.voxel_sa_layers):
             cur_coords = voxel_encode_features[k].indices
             xyz = self.get_voxel_centers(
                 coors=cur_coords,
-                scale_factor=self.voxel_sa_configs[k].scale_factor
-            ).contiguous()
+                scale_factor=self.voxel_sa_configs[k].scale_factor).contiguous(
+                )
             xyz_batch_cnt = xyz.new_zeros(batch_size).int()
             for bs_idx in range(batch_size):
                 xyz_batch_cnt[bs_idx] = (cur_coords[:, 0] == bs_idx).sum()
@@ -309,19 +293,21 @@ class VoxelSetAbstraction(BaseModule):
                 new_xyz_batch_cnt=key_xyz_batch_cnt,
                 features=voxel_encode_features[k].features.contiguous(),
             )
-            point_features_list.append(
-                pooled_features.view(batch_size, num_keypoints, -1))
+            point_features_list.append(pooled_features.contiguous().view(
+                batch_size, num_keypoints, -1))
 
-        point_features = torch.cat(point_features_list, dim=-1).view(
-            batch_size * num_keypoints, -1)
+        point_features = torch.cat(
+            point_features_list, dim=-1).view(batch_size * num_keypoints, -1)
 
         fusion_point_features = self.point_feature_fusion(point_features)
 
-        bid = torch.arange(batch_size * num_keypoints,
-                           device=keypoints.device) // num_keypoints
-        key_bxyz = torch.cat((bid.to(key_xyz.dtype).unsqueeze(dim=-1),
-                              key_xyz), dim=-1)
+        bid = torch.arange(
+            batch_size * num_keypoints,
+            device=keypoints.device) // num_keypoints
+        key_bxyz = torch.cat(
+            (bid.to(key_xyz.dtype).unsqueeze(dim=-1), key_xyz), dim=-1)
 
-        return dict(keypoint_features=point_features,
-                    fusion_keypoint_features=fusion_point_features,
-                    keypoints=key_bxyz)
+        return dict(
+            keypoint_features=point_features,
+            fusion_keypoint_features=fusion_point_features,
+            keypoints=key_bxyz)
