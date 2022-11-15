@@ -5,9 +5,11 @@ from .paconv_sa_module import (PAConvCUDASAModule, PAConvCUDASAModuleMSG,
 from .point_fp_module import PointFPModule
 from .point_sa_module import PointSAModule, PointSAModuleMSG
 from .stack_point_sa_module import StackedSAModuleMSG
+from .voxel_sa_module import VectorPoolAggregationModuleMSG
 
 __all__ = [
     'build_sa_module', 'PointSAModuleMSG', 'PointSAModule', 'PointFPModule',
     'PAConvSAModule', 'PAConvSAModuleMSG', 'PAConvCUDASAModule',
-    'PAConvCUDASAModuleMSG', 'StackedSAModuleMSG'
+    'PAConvCUDASAModuleMSG', 'StackedSAModuleMSG',
+    'VectorPoolAggregationModuleMSG'
 ]

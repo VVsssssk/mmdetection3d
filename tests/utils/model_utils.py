@@ -105,7 +105,7 @@ def _create_detector_inputs(seed=0,
     inputs_dict = dict()
 
     if with_points:
-        points = torch.rand([num_points, points_feat_dim])
+        points = torch.rand([num_points, points_feat_dim]) * 100
         inputs_dict['points'] = [points]
 
     if with_img:

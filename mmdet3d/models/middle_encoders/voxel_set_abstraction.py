@@ -9,6 +9,7 @@ from mmcv.ops.furthest_point_sample import furthest_point_sample
 from mmengine.model import BaseModule
 
 from mmdet3d.registry import MODELS
+from mmdet3d.structures import bbox3d2roi
 from mmdet3d.utils import InstanceList
 
 
@@ -71,10 +72,10 @@ class VoxelSetAbstraction(BaseModule):
     """
 
     def __init__(self,
-                 num_keypoints: int,
                  fused_out_channel: int = 128,
                  voxel_size: list = [0.05, 0.05, 0.1],
                  point_cloud_range: list = [0, -40, -3, 70.4, 40, 1],
+                 keypoints_sampler: dict = None,
                  voxel_sa_cfgs_list: Optional[list] = None,
                  rawpoints_sa_cfgs: Optional[dict] = None,
                  bev_feat_channel: int = 256,
@@ -83,7 +84,7 @@ class VoxelSetAbstraction(BaseModule):
                  norm_cfg: dict = dict(type='BN2d', eps=1e-5, momentum=0.1),
                  bias: str = 'auto') -> None:
         super().__init__()
-        self.num_keypoints = num_keypoints
+        self.keypoints_sampler = MODELS.build(keypoints_sampler)
         self.fused_out_channel = fused_out_channel
         self.voxel_size = voxel_size
         self.point_cloud_range = point_cloud_range
@@ -188,8 +189,10 @@ class VoxelSetAbstraction(BaseModule):
         voxel_centers = (voxel_centers + 0.5) * voxel_size + pc_range
         return voxel_centers
 
-    def sample_key_points(self, points: List[torch.Tensor],
-                          coors: torch.Tensor) -> torch.Tensor:
+    def sample_key_points(self,
+                          points: List[torch.Tensor],
+                          coors: torch.Tensor = None,
+                          rpn_results_list=None) -> torch.Tensor:
         """Sample key points from raw points cloud.
 
         Args:
@@ -211,21 +214,7 @@ class VoxelSetAbstraction(BaseModule):
         else:
             src_points = [p[..., :3] for p in points]
 
-        keypoints_list = []
-        for points_to_sample in src_points:
-            num_points = points_to_sample.shape[0]
-            cur_pt_idxs = furthest_point_sample(
-                points_to_sample.unsqueeze(dim=0).contiguous(),
-                self.num_keypoints).long()[0]
-
-            if num_points < self.num_keypoints:
-                times = int(self.num_keypoints / num_points) + 1
-                non_empty = cur_pt_idxs[:num_points]
-                cur_pt_idxs = non_empty.repeat(times)[:self.num_keypoints]
-
-            keypoints = points_to_sample[cur_pt_idxs]
-
-            keypoints_list.append(keypoints)
+        keypoints_list = self.keypoints_sampler(src_points, rpn_results_list)
         keypoints = torch.stack(keypoints_list, dim=0)  # (B, M, 3)
         return keypoints
 
@@ -252,6 +241,10 @@ class VoxelSetAbstraction(BaseModule):
                 - fusion_keypoint_features (torch.Tensor): Fusion
                     keypoint_features by point_feature_fusion_layer.
         """
+        # from mmengine.structures import InstanceData
+        # from mmdet3d.structures import LiDARInstance3DBoxes
+        # rpn_results_list = [InstanceData(bboxes_3d=LiDARInstance3DBoxes(torch.rand(100, 7).cuda()*100))]
+        roi_boxes_list = [res.bboxes_3d.tensor for res in rpn_results_list]
         points = batch_inputs_dict['points']
         voxel_encode_features = feats_dict['multi_scale_3d_feats']
         bev_encode_features = feats_dict['spatial_feats']
@@ -259,7 +252,8 @@ class VoxelSetAbstraction(BaseModule):
             voxels_coors = batch_inputs_dict['voxels']['coors']
         else:
             voxels_coors = None
-        keypoints = self.sample_key_points(points, voxels_coors)
+        keypoints = self.sample_key_points(points, voxels_coors,
+                                           rpn_results_list)
 
         point_features_list = []
         batch_size = len(points)
@@ -290,13 +284,22 @@ class VoxelSetAbstraction(BaseModule):
                 new_xyz=key_xyz.contiguous(),
                 new_xyz_batch_cnt=key_xyz_batch_cnt,
                 features=features.contiguous(),
-            )
+                roi_boxes_list=roi_boxes_list)
 
             point_features_list.append(pooled_features.contiguous().view(
                 batch_size, num_keypoints, -1))
         if self.voxel_sa_layers is not None:
             for k, voxel_sa_layer in enumerate(self.voxel_sa_layers):
-                cur_coords = voxel_encode_features[k].indices
+                if 'source_feats_index' in self.voxel_sa_configs_list[k]:
+                    source_feats_index = self.voxel_sa_configs_list[k][
+                        'source_feats_index']
+                    cur_coords = voxel_encode_features[
+                        source_feats_index].indices
+                    cur_feats = voxel_encode_features[
+                        source_feats_index].features.contiguous()
+                else:
+                    cur_coords = voxel_encode_features[k].indices
+                    cur_feats = voxel_encode_features[k].features.contiguous()
                 xyz = self.get_voxel_centers(
                     coors=cur_coords,
                     scale_factor=self.voxel_sa_configs_list[k].scale_factor
@@ -310,8 +313,8 @@ class VoxelSetAbstraction(BaseModule):
                     xyz_batch_cnt=xyz_batch_cnt,
                     new_xyz=key_xyz.contiguous(),
                     new_xyz_batch_cnt=key_xyz_batch_cnt,
-                    features=voxel_encode_features[k].features.contiguous(),
-                )
+                    features=cur_feats,
+                    roi_boxes_list=roi_boxes_list)
                 point_features_list.append(pooled_features.contiguous().view(
                     batch_size, num_keypoints, -1))
 

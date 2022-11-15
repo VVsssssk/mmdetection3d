@@ -4,7 +4,8 @@ from typing import List, Optional, Tuple
 import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule
-from mmcv.ops import ball_query, grouping_operation
+from mmcv.ops import (ball_query, grouping_operation, three_interpolate,
+                      three_nn_vector_pool_by_two_step)
 from mmengine.model import BaseModule
 from torch import Tensor
 
@@ -154,7 +155,8 @@ class StackedSAModuleMSG(BaseModule):
                 xyz_batch_cnt: Tensor,
                 new_xyz: Tensor,
                 new_xyz_batch_cnt: Tensor,
-                features: Optional[Tensor] = None) -> Tuple[Tensor, Tensor]:
+                features: Optional[Tensor] = None,
+                **kwargs) -> Tuple[Tensor, Tensor]:
         """Forward.
 
         Args:
