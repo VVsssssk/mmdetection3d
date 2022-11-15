@@ -21,7 +21,7 @@ class TestPVRCNN(unittest.TestCase):
         model = MODELS.build(pvrcnn_cfg)
         num_gt_instance = 2
         packed_inputs = _create_detector_inputs(
-            num_gt_instance=num_gt_instance)
+            num_points=7000, num_gt_instance=num_gt_instance)
 
         # TODO: Support aug data test
         # aug_packed_inputs = [

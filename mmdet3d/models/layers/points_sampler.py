@@ -19,7 +19,7 @@ class FPSSampler(nn.Module):
         super().__init__()
         self.num_keypoints = num_keypoints
 
-    def forward(self, points_list: List[Tensor]) -> Tensor:
+    def forward(self, points_list: List[Tensor], **kwargs) -> Tensor:
         """Sampling points with D-FPS."""
         sampled_points = []
         for batch_idx in range(len(points_list)):

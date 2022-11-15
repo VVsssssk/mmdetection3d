@@ -214,7 +214,8 @@ class VoxelSetAbstraction(BaseModule):
         else:
             src_points = [p[..., :3] for p in points]
 
-        keypoints_list = self.keypoints_sampler(src_points, rpn_results_list)
+        keypoints_list = self.keypoints_sampler(
+            points_list=src_points, rpn_results_list=rpn_results_list)
         keypoints = torch.stack(keypoints_list, dim=0)  # (B, M, 3)
         return keypoints
 

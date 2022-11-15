@@ -82,7 +82,7 @@ model = dict(
             type='FPSSampler',
             num_keypoints=2048,
         ),
-        fused_out_channel=90,
+        fused_out_channel=128,
         voxel_size=voxel_size,
         point_cloud_range=point_cloud_range,
         voxel_sa_cfgs_list=[
