@@ -4,11 +4,8 @@ from typing import List, Optional, Tuple
 import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule
-from mmcv.ops import three_nn_vector_pool_by_two_step
+from mmcv.ops import stack_three_interpolate, three_nn_vector_pool_by_two_step
 from mmengine.model import BaseModule
-from pcdet.ops.pointnet2.pointnet2_stack.pointnet2_utils import \
-    three_interpolate
-from torch import Tensor
 
 from mmdet3d.registry import MODELS
 
@@ -92,9 +89,9 @@ class VectorPoolLocalInterpolateModule(nn.Module):
         empty_mask = (idx.view(-1, 3)[:, 0] == -1)
         idx.view(-1, 3)[empty_mask] = 0
 
-        interpolated_feats = three_interpolate(support_features,
-                                               idx.view(-1, 3),
-                                               weight.view(-1, 3))
+        interpolated_feats = stack_three_interpolate(support_features,
+                                                     idx.view(-1, 3),
+                                                     weight.view(-1, 3))
         interpolated_feats = interpolated_feats.view(
             idx.shape[0], idx.shape[1],
             -1)  # (M1 + M2 ..., num_total_grids, C)
