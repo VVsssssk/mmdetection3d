@@ -17,11 +17,11 @@ class TestPVRCNN(unittest.TestCase):
         DefaultScope.get_instance('test_pvrcnn_plusplus', scope_name='mmdet3d')
         _setup_seed(0)
         pvrcnn_cfg = _get_detector_cfg(
-            'pvrcnn/pvrcnn_plusplus_8xb2-80e_kitti-3d-3class.py')
+            'pvrcnn/pvrcnn_plusplus_8xb2-80e_waymo-3class.py')
         model = MODELS.build(pvrcnn_cfg)
-        num_gt_instance = 2
+        num_gt_instance = 10
         packed_inputs = _create_detector_inputs(
-            num_points=9000, num_gt_instance=num_gt_instance)
+            num_points=9000, points_feat_dim=5, num_gt_instance=num_gt_instance, gt_bboxes_dim=7)
 
         # TODO: Support aug data test
         # aug_packed_inputs = [
@@ -55,9 +55,8 @@ class TestPVRCNN(unittest.TestCase):
             with torch.no_grad():
                 losses = model.forward(**data, mode='loss')
                 torch.cuda.empty_cache()
-            self.assertGreater(losses['loss_rpn_cls'][0], 0)
-            self.assertGreaterEqual(losses['loss_rpn_bbox'][0], 0)
-            self.assertGreaterEqual(losses['loss_rpn_dir'][0], 0)
+            self.assertGreater(losses['rpn_task0.loss_heatmap'], 0)
+            self.assertGreater(losses['rpn_task0.loss_bbox'], 0)
             self.assertGreater(losses['loss_semantic'], 0)
             self.assertGreaterEqual(losses['loss_bbox'], 0)
             self.assertGreaterEqual(losses['loss_cls'], 0)

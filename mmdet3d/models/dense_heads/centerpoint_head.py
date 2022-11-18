@@ -300,7 +300,7 @@ class CenterHead(BaseModule):
                  **kwargs):
         assert init_cfg is None, 'To prevent abnormal initialization ' \
             'behavior, init_cfg is not allowed to be set'
-        super(CenterHead, self).__init__(init_cfg=init_cfg, **kwargs)
+        super(CenterHead, self).__init__(init_cfg=init_cfg)
 
         # TODO we should rename this variable,
         # for example num_classes_per_task ?
@@ -467,6 +467,7 @@ class CenterHead(BaseModule):
         """
         gt_labels_3d = gt_instances_3d.labels_3d
         gt_bboxes_3d = gt_instances_3d.bboxes_3d
+        gt_bboxes_dim = gt_bboxes_3d.tensor.shape[-1]
         device = gt_labels_3d.device
         gt_bboxes_3d = torch.cat(
             (gt_bboxes_3d.gravity_center, gt_bboxes_3d.tensor[:, 3:]),
@@ -509,7 +510,7 @@ class CenterHead(BaseModule):
                 (len(self.class_names[idx]), feature_map_size[1],
                  feature_map_size[0]))
 
-            anno_box = gt_bboxes_3d.new_zeros((max_objs, 10),
+            anno_box = gt_bboxes_3d.new_zeros((max_objs, gt_bboxes_dim + 1),
                                               dtype=torch.float32)
 
             ind = gt_labels_3d.new_zeros((max_objs), dtype=torch.int64)
@@ -567,19 +568,27 @@ class CenterHead(BaseModule):
                     ind[new_idx] = y * feature_map_size[0] + x
                     mask[new_idx] = 1
                     # TODO: support other outdoor dataset
-                    vx, vy = task_boxes[idx][k][7:]
                     rot = task_boxes[idx][k][6]
                     box_dim = task_boxes[idx][k][3:6]
                     if self.norm_bbox:
                         box_dim = box_dim.log()
-                    anno_box[new_idx] = torch.cat([
-                        center - torch.tensor([x, y], device=device),
-                        z.unsqueeze(0), box_dim,
-                        torch.sin(rot).unsqueeze(0),
-                        torch.cos(rot).unsqueeze(0),
-                        vx.unsqueeze(0),
-                        vy.unsqueeze(0)
-                    ])
+                    if gt_bboxes_dim == 9:
+                        vx, vy = task_boxes[idx][k][7:]
+                        anno_box[new_idx] = torch.cat([
+                            center - torch.tensor([x, y], device=device),
+                            z.unsqueeze(0), box_dim,
+                            torch.sin(rot).unsqueeze(0),
+                            torch.cos(rot).unsqueeze(0),
+                            vx.unsqueeze(0),
+                            vy.unsqueeze(0)
+                        ])
+                    else:
+                        anno_box[new_idx] = torch.cat([
+                            center - torch.tensor([x, y], device=device),
+                            z.unsqueeze(0), box_dim,
+                            torch.sin(rot).unsqueeze(0),
+                            torch.cos(rot).unsqueeze(0),
+                        ])
 
             heatmaps.append(heatmap)
             anno_boxes.append(anno_box)
@@ -639,11 +648,16 @@ class CenterHead(BaseModule):
                 avg_factor=max(num_pos, 1))
             target_box = anno_boxes[task_id]
             # reconstruct the anno_box from multiple reg heads
-            preds_dict[0]['anno_box'] = torch.cat(
-                (preds_dict[0]['reg'], preds_dict[0]['height'],
-                 preds_dict[0]['dim'], preds_dict[0]['rot'],
-                 preds_dict[0]['vel']),
-                dim=1)
+            if anno_boxes[task_id].shape[-1] == 10:
+                preds_dict[0]['anno_box'] = torch.cat(
+                    (preds_dict[0]['reg'], preds_dict[0]['height'],
+                     preds_dict[0]['dim'], preds_dict[0]['rot'],
+                     preds_dict[0]['vel']),
+                    dim=1)
+            else:
+                preds_dict[0]['anno_box'] = torch.cat(
+                    (preds_dict[0]['reg'], preds_dict[0]['height'],
+                     preds_dict[0]['dim'], preds_dict[0]['rot']), dim=1)
 
             # Regression loss for dimension, offset, height, rotation
             ind = inds[task_id]
@@ -670,7 +684,7 @@ class CenterHead(BaseModule):
                 **kwargs) -> List[InstanceData]:
         """
         Args:
-            pts_feats (dict): Point features..
+            pts_feats (list[torch.Tensor]): Point features.
             batch_data_samples (List[:obj:`Det3DDataSample`]): The Data
                 Samples. It usually includes meta information of data.
             rescale (bool): Whether rescale the resutls to
@@ -681,7 +695,10 @@ class CenterHead(BaseModule):
             InstanceData contains 3d Bounding boxes and corresponding
             scores and labels.
         """
-        preds_dict = self(pts_feats)
+        if isinstance(pts_feats, list):
+            preds_dict = self(pts_feats)
+        else:
+            preds_dict = self(pts_feats['neck_feats'])
         batch_size = len(batch_data_samples)
         batch_input_metas = []
         for batch_index in range(batch_size):
@@ -925,3 +942,38 @@ class CenterHead(BaseModule):
 
             predictions_dicts.append(predictions_dict)
         return predictions_dicts
+
+    def loss_and_predict(self,
+                         feats_dict: Dict,
+                         batch_data_samples,
+                         **kwargs):
+        """Perform forward propagation of the head, then calculate loss and
+        predictions from the features and data samples.
+
+        Args:
+            feats_dict (dict): Contains features from the first stage.
+            batch_data_samples (List[:obj:`Det3DDataSample`]): The Data
+                samples. It usually includes information such as
+                `gt_instance_3d`, `gt_panoptic_seg_3d` and `gt_sem_seg_3d`.
+            proposal_cfg (ConfigDict, optional): Proposal config.
+
+        Returns:
+            tuple: the return value is a tuple contains:
+
+            - losses: (dict[str, Tensor]): A dictionary of loss components.
+            - predictions (list[:obj:`InstanceData`]): Detection
+              results of each sample after the post process.
+        """
+        batch_gt_instances_3d = []
+        batch_gt_instances_ignore = []
+        batch_input_metas = []
+        for data_sample in batch_data_samples:
+            batch_input_metas.append(data_sample.metainfo)
+            batch_gt_instances_3d.append(data_sample.gt_instances_3d)
+
+        preds_dicts = self(feats_dict['neck_feats'])
+
+        losses = self.loss_by_feat(preds_dicts, batch_gt_instances_3d)
+
+        predictions = self.predict_by_feat(preds_dicts, batch_input_metas)
+        return losses, predictions
