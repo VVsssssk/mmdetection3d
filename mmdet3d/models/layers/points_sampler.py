@@ -72,7 +72,7 @@ class SPCSampler(nn.Module):
             point_mask = min_dis < roi_max_dim + self.sample_radius_with_roi
         else:
             point_mask_list = []
-            for start_idx in range(len(points.shape[0])):
+            for start_idx in range(points.shape[0]):
                 distance = (points[start_idx:start_idx +
                                    self.num_max_points_of_part, None, :] -
                             rois[None, :, 0:3]).norm(dim=-1)
@@ -152,9 +152,15 @@ class SPCSampler(nn.Module):
             roi_boxes_list.append(roi_boxes)
         for batch_idx in range(len(points_list)):
             points = points_list[batch_idx]
+            num_points = points.shape[0]
             cur_keypoints = self.sectorized_proposal_centric_sampling(
                 roi_boxes=roi_boxes_list[batch_idx], points=points)
+            if num_points < self.num_keypoints:
+                times = int(self.num_keypoints / num_points) + 1
+                sampled_keypoinys = cur_keypoints.repeat(times)[:self.num_keypoints]
+            else:
+                sampled_keypoinys = cur_keypoints[:self.num_keypoints]
             # bs_idxs = cur_keypoints.new_ones(cur_keypoints.shape[0]) * batch_idx
             # keypoints = torch.cat((bs_idxs[:, None], cur_keypoints), dim=1)
-            sampled_points.append(cur_keypoints)
+            sampled_points.append(sampled_keypoinys)
         return sampled_points

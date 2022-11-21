@@ -1,12 +1,13 @@
 _base_ = [
     '../_base_/datasets/waymoD5-3d-3class.py',
-    '../_base_/schedules/cyclic-40e.py', '../_base_/default_runtime.py'
+    '../_base_/schedules/cyclic-40e.py',
+    '../_base_/default_runtime.py'
 ]
 
 voxel_size = [0.1, 0.1, 0.15]
 point_cloud_range = [-75.2, -75.2, -2, 75.2, 75.2, 4]
 
-data_root = 'data/waymo/'
+data_root = 'data/waymo/kitti_format/'
 class_names = ['Car', 'Pedestrian', 'Cyclist']
 metainfo = dict(CLASSES=class_names)
 db_sampler = dict(
@@ -347,12 +348,12 @@ model = dict(
 train_dataloader = dict(
     batch_size=2,
     num_workers=2,
-    dataset=dict(pipeline=train_pipeline, metainfo=metainfo))
+    dataset=dict(dataset=dict(pipeline=train_pipeline, metainfo=metainfo)))
 test_dataloader = dict(dataset=dict(pipeline=test_pipeline, metainfo=metainfo))
 eval_dataloader = dict(dataset=dict(pipeline=test_pipeline, metainfo=metainfo))
 lr = 0.001
 optim_wrapper = dict(optimizer=dict(lr=lr))
-train_cfg = dict(max_epochs=15)
+train_cfg = dict(by_epoch=True, max_epochs=15, val_interval=1)
 param_scheduler = [
     # learning rate scheduler
     # During the first 16 epochs, learning rate increases from 0 to lr * 10

@@ -433,7 +433,7 @@ class VectorPoolAggregationModuleMSG(nn.Module):
             point_mask = min_dis < roi_max_dim + self.radius_of_neighbor_with_roi
         else:
             point_mask_list = []
-            for start_idx in range(len(points.shape[0])):
+            for start_idx in range(points.shape[0]):
                 distance = (points[start_idx:start_idx +
                                    self.num_max_points_of_part, None, :] -
                             rois[None, :, 0:3]).norm(dim=-1)
