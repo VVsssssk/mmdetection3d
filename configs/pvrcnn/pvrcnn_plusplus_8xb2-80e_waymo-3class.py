@@ -1,7 +1,6 @@
 _base_ = [
     '../_base_/datasets/waymoD5-3d-3class.py',
-    '../_base_/schedules/cyclic-40e.py',
-    '../_base_/default_runtime.py'
+    '../_base_/schedules/cyclic-40e.py', '../_base_/default_runtime.py'
 ]
 
 voxel_size = [0.1, 0.1, 0.15]
@@ -46,11 +45,7 @@ train_pipeline = [
         keys=['points', 'gt_bboxes_3d', 'gt_labels_3d'])
 ]
 test_pipeline = [
-    dict(
-        type='LoadPointsFromFile',
-        coord_type='LIDAR',
-        load_dim=6,
-        use_dim=5),
+    dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=6, use_dim=5),
     dict(
         type='MultiScaleFlipAug3D',
         img_scale=(1333, 800),
@@ -105,12 +100,11 @@ model = dict(
         tasks=[
             dict(num_class=3, class_names=class_names),
         ],
-        common_heads=dict(
-            reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2)),
+        common_heads=dict(reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2)),
         share_conv_channel=64,
         bbox_coder=dict(
             type='CenterPointBBoxCoder',
-            post_center_range=[ -75.2, -75.2, -2, 75.2, 75.2, 4 ],
+            post_center_range=[-75.2, -75.2, -2, 75.2, 75.2, 4],
             max_num=500,
             score_threshold=0.1,
             out_size_factor=8,
@@ -119,9 +113,9 @@ model = dict(
             code_size=7),
         separate_head=dict(
             type='SeparateHead', init_bias=-2.19, final_kernel=3),
-        loss_cls=dict(type='mmdet.GaussianFocalLoss', reduction='mean',loss_weight=1),
-        loss_bbox=dict(
-            type='mmdet.L1Loss', reduction='mean', loss_weight=2),
+        loss_cls=dict(
+            type='mmdet.GaussianFocalLoss', reduction='mean', loss_weight=1),
+        loss_bbox=dict(type='mmdet.L1Loss', reduction='mean', loss_weight=2),
         norm_bbox=True),
     points_encoder=dict(
         type='VoxelSetAbstraction',

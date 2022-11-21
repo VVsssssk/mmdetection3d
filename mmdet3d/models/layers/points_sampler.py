@@ -157,7 +157,8 @@ class SPCSampler(nn.Module):
                 roi_boxes=roi_boxes_list[batch_idx], points=points)
             if num_points < self.num_keypoints:
                 times = int(self.num_keypoints / num_points) + 1
-                sampled_keypoinys = cur_keypoints.repeat(times)[:self.num_keypoints]
+                sampled_keypoinys = cur_keypoints.repeat(
+                    times)[:self.num_keypoints]
             else:
                 sampled_keypoinys = cur_keypoints[:self.num_keypoints]
             # bs_idxs = cur_keypoints.new_ones(cur_keypoints.shape[0]) * batch_idx

@@ -4,9 +4,12 @@ from typing import List, Optional, Tuple
 import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule
-from mmcv.ops import stack_three_interpolate, three_nn_vector_pool_by_two_step # , vector_pool_with_voxel_query
+from mmcv.ops import (  # , vector_pool_with_voxel_query
+    stack_three_interpolate, three_nn_vector_pool_by_two_step)
 from mmengine.model import BaseModule
-from pcdet.ops.pointnet2.pointnet2_stack.pointnet2_utils import vector_pool_with_voxel_query_op as vector_pool_with_voxel_query
+from pcdet.ops.pointnet2.pointnet2_stack.pointnet2_utils import \
+    vector_pool_with_voxel_query_op as vector_pool_with_voxel_query
+
 from mmdet3d.registry import MODELS
 
 
@@ -291,25 +294,31 @@ class VectorPoolAggregationModule(nn.Module):
         voxel_features = voxel_features.contiguous().view(
             -1, self.total_voxels * voxel_features.shape[-1])
         return voxel_features
-    def vector_pool_with_voxel_query(self, xyz, xyz_batch_cnt, features, new_xyz, new_xyz_batch_cnt):
+
+    def vector_pool_with_voxel_query(self, xyz, xyz_batch_cnt, features,
+                                     new_xyz, new_xyz_batch_cnt):
         use_xyz = 1
         pooling_type = 0 if self.local_aggregation_type == 'voxel_avg_pool' else 1
 
         new_features, new_local_xyz, num_mean_points_per_grid, point_cnt_of_grid = vector_pool_with_voxel_query(
             xyz, xyz_batch_cnt, features, new_xyz, new_xyz_batch_cnt,
-            self.num_local_voxel[0], self.num_local_voxel[1], self.num_local_voxel[2],
-            self.max_neighbour_distance, self.num_reduced_channels, use_xyz,
-            self.num_mean_points_per_grid, self.neighbor_nsample, self.neighbor_type,
-            pooling_type
-        )
-        self.num_mean_points_per_grid = max(self.num_mean_points_per_grid, num_mean_points_per_grid.item())
+            self.num_local_voxel[0], self.num_local_voxel[1],
+            self.num_local_voxel[2], self.max_neighbour_distance,
+            self.num_reduced_channels, use_xyz, self.num_mean_points_per_grid,
+            self.neighbor_nsample, self.neighbor_type, pooling_type)
+        self.num_mean_points_per_grid = max(self.num_mean_points_per_grid,
+                                            num_mean_points_per_grid.item())
 
         num_new_pts = new_features.shape[0]
-        new_local_xyz = new_local_xyz.view(num_new_pts, -1, 3)  # (N, num_voxel, 3)
-        new_features = new_features.view(num_new_pts, -1, self.num_reduced_channels)  # (N, num_voxel, C)
-        new_features = torch.cat((new_local_xyz, new_features), dim=-1).view(num_new_pts, -1)
+        new_local_xyz = new_local_xyz.view(num_new_pts, -1,
+                                           3)  # (N, num_voxel, 3)
+        new_features = new_features.view(
+            num_new_pts, -1, self.num_reduced_channels)  # (N, num_voxel, C)
+        new_features = torch.cat((new_local_xyz, new_features),
+                                 dim=-1).view(num_new_pts, -1)
 
         return new_features, point_cnt_of_grid
+
     def forward(self, xyz, xyz_batch_cnt, new_xyz, new_xyz_batch_cnt, features,
                 **kwargs):
         """
@@ -343,11 +352,15 @@ class VectorPoolAggregationModule(nn.Module):
                 new_xyz=new_xyz,
                 new_xyz_batch_cnt=new_xyz_batch_cnt
             )  # (M1 + M2 + ..., total_voxels * C)
-        elif self.local_aggregation_type in ['voxel_avg_pool', 'voxel_random_choice']:
+        elif self.local_aggregation_type in [
+                'voxel_avg_pool', 'voxel_random_choice'
+        ]:
             vector_features, point_cnt_of_grid = self.vector_pool_with_voxel_query(
-                xyz=xyz.contiguous(), xyz_batch_cnt=xyz_batch_cnt, features=features.contiguous(),
-                new_xyz=new_xyz.contiguous(), new_xyz_batch_cnt=new_xyz_batch_cnt
-            )
+                xyz=xyz.contiguous(),
+                xyz_batch_cnt=xyz_batch_cnt,
+                features=features.contiguous(),
+                new_xyz=new_xyz.contiguous(),
+                new_xyz_batch_cnt=new_xyz_batch_cnt)
         else:
             raise NotImplementedError
 
