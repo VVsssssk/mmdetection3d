@@ -130,7 +130,7 @@ class VectorPoolAggregationModule(nn.Module):
                  in_channels,
                  num_local_voxel=(3, 3, 3),
                  local_aggregation_type='local_interpolation',
-                 num_reduced_channels=30,
+                 num_reduced_channels=1,
                  num_channels_of_local_aggregation=32,
                  post_mlps=(128, ),
                  max_neighbor_distance=None,
@@ -206,26 +206,6 @@ class VectorPoolAggregationModule(nn.Module):
               f'num_c_reduction={self.input_channels}->{self.num_reduced_channels}, ' \
               f'num_c_local_aggregation={self.num_channels_of_local_aggregation}'
         return ret
-
-    # def vector_pool_with_voxel_query(self, xyz, xyz_batch_cnt, features, new_xyz, new_xyz_batch_cnt):
-    #     use_xyz = 1
-    #     pooling_type = 0 if self.local_aggregation_type == 'voxel_avg_pool' else 1
-    #
-    #     new_features, new_local_xyz, num_mean_points_per_grid, point_cnt_of_grid = vector_pool_with_voxel_query_op(
-    #         xyz, xyz_batch_cnt, features, new_xyz, new_xyz_batch_cnt,
-    #         self.num_local_voxel[0], self.num_local_voxel[1], self.num_local_voxel[2],
-    #         self.max_neighbour_distance, self.num_reduced_channels, use_xyz,
-    #         self.num_mean_points_per_grid, self.neighbor_nsample, self.neighbor_type,
-    #         pooling_type
-    #     )
-    #     self.num_mean_points_per_grid = max(self.num_mean_points_per_grid, num_mean_points_per_grid.item())
-    #
-    #     num_new_pts = new_features.shape[0]
-    #     new_local_xyz = new_local_xyz.view(num_new_pts, -1, 3)  # (N, num_voxel, 3)
-    #     new_features = new_features.view(num_new_pts, -1, self.num_reduced_channels)  # (N, num_voxel, C)
-    #     new_features = torch.cat((new_local_xyz, new_features), dim=-1).view(num_new_pts, -1)
-    #
-    #     return new_features, point_cnt_of_grid
 
     @staticmethod
     def get_dense_voxels_by_center(point_centers, max_neighbour_distance,
@@ -387,7 +367,7 @@ class VectorPoolAggregationModuleMSG(nn.Module):
                  radius_of_neighbor_with_roi=4.0,
                  num_reduced_channels=None,
                  groups_cfg_list=None,
-                 num_max_points_of_part=20000,
+                 num_max_points_of_part=200000,
                  **kwargs):
         super().__init__()
         self.filter_neighbor_with_roi = filter_neighbor_with_roi
@@ -445,8 +425,9 @@ class VectorPoolAggregationModuleMSG(nn.Module):
             roi_max_dim = (rois[min_dis_roi_idx, 3:6] / 2).norm(dim=-1)
             point_mask = min_dis < roi_max_dim + self.radius_of_neighbor_with_roi
         else:
+            start_idx = 0
             point_mask_list = []
-            for start_idx in range(points.shape[0]):
+            while start_idx < points.shape[0]:
                 distance = (points[start_idx:start_idx +
                                    self.num_max_points_of_part, None, :] -
                             rois[None, :, 0:3]).norm(dim=-1)
@@ -472,11 +453,8 @@ class VectorPoolAggregationModuleMSG(nn.Module):
                 **kwargs):
         gemo_center_boxes_list = []
         for roi_boxes in roi_boxes_list:
-            gemo_center_roi_boxes = roi_boxes.clone()
-            gemo_center_roi_boxes[:,
-                                  2] = gemo_center_roi_boxes[:,
-                                                             2] + gemo_center_roi_boxes[:,
-                                                                                        5] / 2
+            gemo_center_roi_boxes = roi_boxes.clone().detach()
+            gemo_center_roi_boxes[:, 2] = roi_boxes[:, 2] + roi_boxes[:, 5] / 2
             gemo_center_boxes_list.append(gemo_center_roi_boxes)
         if self.filter_neighbor_with_roi:
             point_features = torch.cat(

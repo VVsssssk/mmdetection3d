@@ -585,7 +585,8 @@ class CenterHead(BaseModule):
                     else:
                         anno_box[new_idx] = torch.cat([
                             center - torch.tensor([x, y], device=device),
-                            z.unsqueeze(0), box_dim,
+                            z.unsqueeze(0),
+                            box_dim,
                             torch.sin(rot).unsqueeze(0),
                             torch.cos(rot).unsqueeze(0),
                         ])
@@ -657,7 +658,8 @@ class CenterHead(BaseModule):
             else:
                 preds_dict[0]['anno_box'] = torch.cat(
                     (preds_dict[0]['reg'], preds_dict[0]['height'],
-                     preds_dict[0]['dim'], preds_dict[0]['rot']), dim=1)
+                     preds_dict[0]['dim'], preds_dict[0]['rot']),
+                    dim=1)
 
             # Regression loss for dimension, offset, height, rotation
             ind = inds[task_id]
@@ -706,11 +708,15 @@ class CenterHead(BaseModule):
             batch_input_metas.append(metainfo)
 
         results_list = self.predict_by_feat(
-            preds_dict, batch_input_metas, rescale=rescale, **kwargs)
+            preds_dict, batch_input_metas, test_cfg=self.test_cfg, **kwargs)
         return results_list
 
-    def predict_by_feat(self, preds_dicts: Tuple[List[dict]],
-                        batch_input_metas: List[dict], *args,
+    @torch.no_grad()
+    def predict_by_feat(self,
+                        preds_dicts: Tuple[List[dict]],
+                        batch_input_metas: List[dict],
+                        test_cfg=None,
+                        *args,
                         **kwargs) -> List[InstanceData]:
         """Generate bboxes from bbox head predictions.
 
@@ -782,7 +788,7 @@ class CenterHead(BaseModule):
                     keep = torch.tensor(
                         circle_nms(
                             boxes.detach().cpu().numpy(),
-                            self.test_cfg['min_radius'][task_id],
+                            test_cfg['min_radius'][task_id],
                             post_max_size=self.test_cfg['post_max_size']),
                         dtype=torch.long,
                         device=boxes.device)
@@ -797,7 +803,7 @@ class CenterHead(BaseModule):
                 rets.append(
                     self.get_task_detections(num_class_with_bg,
                                              batch_cls_preds, batch_reg_preds,
-                                             batch_cls_labels,
+                                             batch_cls_labels, test_cfg,
                                              batch_input_metas))
 
         # Merge branches results
@@ -827,7 +833,8 @@ class CenterHead(BaseModule):
         return ret_list
 
     def get_task_detections(self, num_class_with_bg, batch_cls_preds,
-                            batch_reg_preds, batch_cls_labels, img_metas):
+                            batch_reg_preds, batch_cls_labels, test_cfg,
+                            img_metas):
         """Rotate nms for each task.
 
         Args:
@@ -851,7 +858,7 @@ class CenterHead(BaseModule):
                     shape of [N].
         """
         predictions_dicts = []
-        post_center_range = self.test_cfg['post_center_limit_range']
+        post_center_range = test_cfg['post_center_limit_range']
         if len(post_center_range) > 0:
             post_center_range = torch.tensor(
                 post_center_range,
@@ -876,15 +883,15 @@ class CenterHead(BaseModule):
                 top_labels = cls_labels.long()
                 top_scores = cls_preds.squeeze(-1)
 
-            if self.test_cfg['score_threshold'] > 0.0:
+            if test_cfg['score_threshold'] > 0.0:
                 thresh = torch.tensor(
-                    [self.test_cfg['score_threshold']],
+                    [test_cfg['score_threshold']],
                     device=cls_preds.device).type_as(cls_preds)
                 top_scores_keep = top_scores >= thresh
                 top_scores = top_scores.masked_select(top_scores_keep)
 
             if top_scores.shape[0] != 0:
-                if self.test_cfg['score_threshold'] > 0.0:
+                if test_cfg['score_threshold'] > 0.0:
                     box_preds = box_preds[top_scores_keep]
                     top_labels = top_labels[top_scores_keep]
 
@@ -895,9 +902,9 @@ class CenterHead(BaseModule):
                 selected = nms_bev(
                     boxes_for_nms,
                     top_scores,
-                    thresh=self.test_cfg['nms_thr'],
-                    pre_max_size=self.test_cfg['pre_max_size'],
-                    post_max_size=self.test_cfg['post_max_size'])
+                    thresh=test_cfg['nms_thr'],
+                    pre_max_size=test_cfg['pre_max_size'],
+                    post_max_size=test_cfg['post_max_size'])
             else:
                 selected = []
 
@@ -946,6 +953,7 @@ class CenterHead(BaseModule):
     def loss_and_predict(self,
                          feats_dict: Dict,
                          batch_data_samples,
+                         proposal_cfg=None,
                          **kwargs):
         """Perform forward propagation of the head, then calculate loss and
         predictions from the features and data samples.
@@ -965,7 +973,6 @@ class CenterHead(BaseModule):
               results of each sample after the post process.
         """
         batch_gt_instances_3d = []
-        batch_gt_instances_ignore = []
         batch_input_metas = []
         for data_sample in batch_data_samples:
             batch_input_metas.append(data_sample.metainfo)
@@ -975,5 +982,6 @@ class CenterHead(BaseModule):
 
         losses = self.loss_by_feat(preds_dicts, batch_gt_instances_3d)
 
-        predictions = self.predict_by_feat(preds_dicts, batch_input_metas)
+        predictions = self.predict_by_feat(preds_dicts, batch_input_metas,
+                                           proposal_cfg)
         return losses, predictions

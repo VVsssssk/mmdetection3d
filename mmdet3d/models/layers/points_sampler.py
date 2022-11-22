@@ -71,8 +71,9 @@ class SPCSampler(nn.Module):
             roi_max_dim = (rois[min_dis_roi_idx, 3:6] / 2).norm(dim=-1)
             point_mask = min_dis < roi_max_dim + self.sample_radius_with_roi
         else:
+            start_idx = 0
             point_mask_list = []
-            for start_idx in range(points.shape[0]):
+            while start_idx < points.shape[0]:
                 distance = (points[start_idx:start_idx +
                                    self.num_max_points_of_part, None, :] -
                             rois[None, :, 0:3]).norm(dim=-1)
@@ -125,11 +126,9 @@ class SPCSampler(nn.Module):
 
         xyz = torch.cat(xyz_points_list, dim=0)
         xyz_batch_cnt = torch.tensor(xyz_batch_cnt, device=points.device).int()
-        sampled_points_batch_cnt = torch.tensor(
-            num_sampled_points_list, device=points.device).int()
 
         sampled_pt_idxs = furthest_point_sample(xyz.contiguous(),
-                                                sampled_points_batch_cnt,
+                                                num_sampled_points_list,
                                                 xyz_batch_cnt).long()
 
         sampled_points = xyz[sampled_pt_idxs]
@@ -147,18 +146,21 @@ class SPCSampler(nn.Module):
         sampled_points = []
         roi_boxes_list = []
         for proposal in rpn_results_list:
-            roi_boxes = proposal.bboxes_3d.tensor.clone()
-            roi_boxes[:, 2] = roi_boxes[:, 2] + roi_boxes[:, 5] / 2
+            roi_boxes = proposal.bboxes_3d.tensor.clone().detach()
+            roi_boxes[:,
+                      2] = proposal.bboxes_3d.tensor[:,
+                                                     2] + proposal.bboxes_3d.tensor[:,
+                                                                                    5] / 2
             roi_boxes_list.append(roi_boxes)
         for batch_idx in range(len(points_list)):
             points = points_list[batch_idx]
-            num_points = points.shape[0]
             cur_keypoints = self.sectorized_proposal_centric_sampling(
                 roi_boxes=roi_boxes_list[batch_idx], points=points)
+            num_points = cur_keypoints.shape[0]
             if num_points < self.num_keypoints:
                 times = int(self.num_keypoints / num_points) + 1
                 sampled_keypoinys = cur_keypoints.repeat(
-                    times)[:self.num_keypoints]
+                    times, 1)[:self.num_keypoints]
             else:
                 sampled_keypoinys = cur_keypoints[:self.num_keypoints]
             # bs_idxs = cur_keypoints.new_ones(cur_keypoints.shape[0]) * batch_idx

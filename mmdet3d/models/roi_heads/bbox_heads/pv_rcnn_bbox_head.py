@@ -440,21 +440,21 @@ class PVRCNNBBoxHead(BaseModule):
         # post processing
         result_list = []
         for batch_id in range(batch_size):
-            cls_preds = cls_preds[roi_batch_id == batch_id]
+            cur_cls_preds = cls_preds[roi_batch_id == batch_id]
             box_preds = batch_box_preds[roi_batch_id == batch_id]
             label_preds = class_labels[batch_id]
 
-            cls_preds = cls_preds.sigmoid()
-            cls_preds, _ = torch.max(cls_preds, dim=-1)
+            cur_cls_preds = cur_cls_preds.sigmoid()
+            cur_cls_preds, _ = torch.max(cur_cls_preds, dim=-1)
             selected = self.class_agnostic_nms(
-                scores=cls_preds,
+                scores=cur_cls_preds,
                 bbox_preds=box_preds,
                 input_meta=input_metas[batch_id],
                 nms_cfg=test_cfg)
 
             selected_bboxes = box_preds[selected]
             selected_label_preds = label_preds[selected]
-            selected_scores = cls_preds[selected]
+            selected_scores = cur_cls_preds[selected]
 
             results = InstanceData()
             results.bboxes_3d = input_metas[batch_id]['box_type_3d'](
