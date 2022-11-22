@@ -5,11 +5,9 @@ import mmengine
 import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule
-from mmcv.ops.furthest_point_sample import furthest_point_sample
 from mmengine.model import BaseModule
 
 from mmdet3d.registry import MODELS
-from mmdet3d.structures import bbox3d2roi
 from mmdet3d.utils import InstanceList
 
 
@@ -242,9 +240,6 @@ class VoxelSetAbstraction(BaseModule):
                 - fusion_keypoint_features (torch.Tensor): Fusion
                     keypoint_features by point_feature_fusion_layer.
         """
-        # from mmengine.structures import InstanceData
-        # from mmdet3d.structures import LiDARInstance3DBoxes
-        # rpn_results_list = [InstanceData(bboxes_3d=LiDARInstance3DBoxes(torch.rand(100, 7).cuda()*100))]
         roi_boxes_list = [res.bboxes_3d.tensor for res in rpn_results_list]
         points = batch_inputs_dict['points']
         voxel_encode_features = feats_dict['multi_scale_3d_feats']

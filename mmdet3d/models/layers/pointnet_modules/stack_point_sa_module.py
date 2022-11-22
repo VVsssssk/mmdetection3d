@@ -4,8 +4,7 @@ from typing import List, Optional, Tuple
 import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule
-from mmcv.ops import (ball_query, grouping_operation, three_interpolate,
-                      three_nn_vector_pool_by_two_step)
+from mmcv.ops import ball_query, grouping_operation
 from mmengine.model import BaseModule
 from torch import Tensor
 
@@ -100,7 +99,7 @@ class StackedSAModuleMSG(BaseModule):
             pointnet before the global pooling for each scale to encode
             point features.
         use_xyz (bool): Whether to use xyz. Default: True.
-        pool_mod (str, optional): Type of pooling method.
+        pool_mod (str): Type of pooling method.
             Default: 'max_pool'.
         norm_cfg (dict): Type of normalization method. Defaults to
             dict(type='BN2d', eps=1e-5, momentum=0.01).

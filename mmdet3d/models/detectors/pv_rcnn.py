@@ -91,7 +91,6 @@ class PointVoxelRCNN(TwoStage3DDetector):
         """
         feats_dict = self.extract_feat(batch_inputs_dict)
         if self.with_rpn:
-
             rpn_results_list = self.rpn_head.predict(feats_dict,
                                                      batch_data_samples)
         else:

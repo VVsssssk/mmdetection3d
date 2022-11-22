@@ -3,6 +3,7 @@ from typing import List, Tuple
 
 import torch
 from mmcv.ops import points_in_boxes_all, three_interpolate, three_nn
+from mmdet.models.losses import sigmoid_focal_loss, smooth_l1_loss
 from torch import Tensor
 from torch import nn as nn
 
@@ -10,7 +11,6 @@ from mmdet3d.models.layers import SparseBasicBlock, make_sparse_convmodule
 from mmdet3d.models.layers.spconv import IS_SPCONV2_AVAILABLE
 from mmdet3d.registry import MODELS
 from mmdet3d.structures import BaseInstance3DBoxes
-from mmdet.models.losses import sigmoid_focal_loss, smooth_l1_loss
 
 if IS_SPCONV2_AVAILABLE:
     from spconv.pytorch import SparseConvTensor, SparseSequential
@@ -41,7 +41,7 @@ class SparseEncoder(nn.Module):
             Defaults to ((1, ), (1, 1, 1), (1, 1, 1), ((0, 1, 1), 1, 1)).
         block_type (str, optional): Type of the block to use.
             Defaults to 'conv_module'.
-        return_middle_feats (bool, optional): Whether output middle features.
+        return_middle_feats (bool): Whether output middle features.
             Default to False.
     """
 
@@ -121,7 +121,14 @@ class SparseEncoder(nn.Module):
             batch_size (int): Batch size.
 
         Returns:
-            dict: Backbone features.
+            torch.Tensor | tuple[torch.Tensor, list]: Return spatial features
+                include:
+
+            - spatial_features (torch.Tensor): Spatial features are out from
+                the last layer.
+            - encode_features (List[SparseConvTensor], optional): Middle layer
+                output features. When self.return_middle_feats is True, the
+                module returns middle features.
         """
         coors = coors.int()
         input_sp_tensor = SparseConvTensor(voxel_features, coors,

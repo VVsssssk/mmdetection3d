@@ -2,6 +2,8 @@
 from typing import List, Optional
 
 import torch
+from mmdet.models.task_modules import AssignResult
+from mmdet.models.task_modules.samplers import SamplingResult
 from torch.nn import functional as F
 
 from mmdet3d.models.roi_heads.base_3droi_head import Base3DRoIHead
@@ -9,12 +11,10 @@ from mmdet3d.registry import MODELS
 from mmdet3d.structures import bbox3d2roi
 from mmdet3d.structures.det3d_data_sample import SampleList
 from mmdet3d.utils import InstanceList
-from mmdet.models.task_modules import AssignResult
-from mmdet.models.task_modules.samplers import SamplingResult
 
 
 @MODELS.register_module()
-class PVRCNNROIHead(Base3DRoIHead):
+class PVRCNNRoiHead(Base3DRoIHead):
     """RoI head for PV-RCNN.
 
     Args:
@@ -40,7 +40,7 @@ class PVRCNNROIHead(Base3DRoIHead):
                  train_cfg: Optional[dict] = None,
                  test_cfg: Optional[dict] = None,
                  init_cfg: Optional[dict] = None):
-        super(PVRCNNROIHead, self).__init__(
+        super(PVRCNNRoiHead, self).__init__(
             bbox_head=bbox_head,
             bbox_roi_extractor=bbox_roi_extractor,
             train_cfg=train_cfg,

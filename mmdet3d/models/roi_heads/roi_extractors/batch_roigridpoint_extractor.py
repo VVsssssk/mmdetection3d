@@ -58,7 +58,6 @@ class Batch3DRoIGridExtractor(BaseModule):
         for k in range(batch_size):
             new_xyz_batch_cnt[k] = ((rois_batch_inds == k).sum() *
                                     roi_grid.size(1))
-
         pooled_points, pooled_features = self.roi_grid_pool_layer(
             xyz=xyz.contiguous(),
             xyz_batch_cnt=xyz_batch_cnt,
