@@ -198,7 +198,7 @@ model = dict(
                     neighbor_nsample=-1),
             ])),
     roi_head=dict(
-        type='PVRCNNROIHead',
+        type='PVRCNNRoiHead',
         num_classes=3,
         semantic_head=dict(
             type='ForegroundSegmentationHead',
