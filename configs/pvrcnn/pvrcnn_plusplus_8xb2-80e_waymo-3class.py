@@ -346,7 +346,7 @@ train_dataloader = dict(
 test_dataloader = dict(dataset=dict(pipeline=test_pipeline, metainfo=metainfo))
 eval_dataloader = dict(dataset=dict(pipeline=test_pipeline, metainfo=metainfo))
 lr = 0.001
-optim_wrapper = dict(optimizer=dict(lr=lr))
+optim_wrapper = dict(optimizer=dict(lr=lr, weight_decay=0.001))
 train_cfg = dict(by_epoch=True, max_epochs=15, val_interval=1)
 param_scheduler = [
     # learning rate scheduler
