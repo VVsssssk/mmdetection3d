@@ -373,9 +373,9 @@ class VectorPoolAggregationModuleMSG(nn.Module):
         self.filter_neighbor_with_roi = filter_neighbor_with_roi
         self.radius_of_neighbor_with_roi = radius_of_neighbor_with_roi
         self.num_max_points_of_part = num_max_points_of_part
-        self.layers = []
+        self.layers = nn.Sequential()
         c_in = 0
-        for cur_config in groups_cfg_list:
+        for k, cur_config in enumerate(groups_cfg_list):
             cur_vector_pool_module = VectorPoolAggregationModule(
                 in_channels=in_channels,
                 num_local_voxel=cur_config.num_local_voxel,
@@ -392,7 +392,7 @@ class VectorPoolAggregationModuleMSG(nn.Module):
                 neighbor_distance_multiplier=cur_config.get(
                     'neighbor_distance_multiplier',
                     neighbor_distance_multiplier))
-            self.layers.append(cur_vector_pool_module)
+            self.layers.add_module(f'layer_{k}', cur_vector_pool_module)
             c_in += cur_config.post_mlps[-1]
 
         c_in += 3  # use_xyz
