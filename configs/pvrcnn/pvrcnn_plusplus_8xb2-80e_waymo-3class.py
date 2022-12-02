@@ -4,7 +4,7 @@ _base_ = [
 ]
 
 voxel_size = [0.1, 0.1, 0.15]
-point_cloud_range = [-75.2, -75.2, -2, 75.2, 75.2, 4]
+point_cloud_range = [-74.88, -74.88, -2, 74.88, 74.88, 4]
 
 data_root = 'data/waymo/kitti_format/'
 class_names = ['Car', 'Pedestrian', 'Cyclist']
@@ -98,7 +98,9 @@ model = dict(
         type='CenterHead',
         in_channels=sum([256, 256]),
         tasks=[
-            dict(num_class=3, class_names=class_names),
+            dict(num_class=1, class_names=['Car']),
+            dict(num_class=1, class_names=['Pedestrian']),
+            dict(num_class=1, class_names=['Cyclist'])
         ],
         common_heads=dict(reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2)),
         share_conv_channel=64,
@@ -274,14 +276,14 @@ model = dict(
             pc_range=point_cloud_range[:2],
             max_per_img=500,
             max_pool_nms=False,
-            min_radius=[4, 12, 10, 1, 0.85, 0.175],
-            score_threshold=0,
+            min_radius=2,
+            score_threshold=0.1,
             out_size_factor=8,
             voxel_size=voxel_size[:2],
             nms_type='rotate',
-            pre_max_size=9000,
-            post_max_size=512,
-            nms_thr=0.8),
+            pre_max_size=4096,
+            post_max_size=500,
+            nms_thr=0.7),
         rcnn=dict(
             assigner=[
                 dict(  # for Pedestrian
@@ -324,9 +326,9 @@ model = dict(
         rpn=dict(
             post_center_limit_range=[-75.2, -75.2, -2, 75.2, 75.2, 4],
             pc_range=point_cloud_range[:2],
-            max_per_img=500,
+            max_per_img=4096,
             max_pool_nms=False,
-            min_radius=[4, 12, 10, 1, 0.85, 0.175],  # ?
+            min_radius=2,  # ?
             score_threshold=0.1,
             out_size_factor=8,
             voxel_size=voxel_size[:2],
