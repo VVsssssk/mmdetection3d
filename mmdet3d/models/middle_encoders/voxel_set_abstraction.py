@@ -90,13 +90,6 @@ class VoxelSetAbstraction(BaseModule):
 
         gathered_channel = 0
 
-        if rawpoints_sa_cfgs is not None:
-            self.rawpoints_sa_layer = MODELS.build(rawpoints_sa_cfgs)
-            gathered_channel += sum(
-                [x[-1] for x in rawpoints_sa_cfgs.mlp_channels])
-        else:
-            self.rawpoints_sa_layer = None
-
         if voxel_sa_cfgs_list is not None:
             self.voxel_sa_configs_list = voxel_sa_cfgs_list
             self.voxel_sa_layers = nn.ModuleList()
@@ -107,6 +100,13 @@ class VoxelSetAbstraction(BaseModule):
                     [x[-1] for x in voxel_sa_config.mlp_channels])
         else:
             self.voxel_sa_layers = None
+
+        if rawpoints_sa_cfgs is not None:
+            self.rawpoints_sa_layer = MODELS.build(rawpoints_sa_cfgs)
+            gathered_channel += sum(
+                [x[-1] for x in rawpoints_sa_cfgs.mlp_channels])
+        else:
+            self.rawpoints_sa_layer = None
 
         if bev_feat_channel is not None and bev_scale_factor is not None:
             self.bev_cfg = mmengine.Config(
@@ -269,12 +269,12 @@ class VoxelSetAbstraction(BaseModule):
             batch_points = torch.cat(points, dim=0)
             batch_cnt = [len(p) for p in points]
             xyz = batch_points[:, :3].contiguous()
-            features = None
+            features = batch_points[:, 3:]
             if batch_points.size(1) > 0:
                 features = batch_points[:, 3:].contiguous()
             xyz_batch_cnt = xyz.new_tensor(batch_cnt, dtype=torch.int32)
 
-            pooled_points, pooled_features = self.rawpoints_sa_layer(
+            _, pooled_features = self.rawpoints_sa_layer(
                 xyz=xyz.contiguous(),
                 xyz_batch_cnt=xyz_batch_cnt,
                 new_xyz=key_xyz.contiguous(),
@@ -304,7 +304,7 @@ class VoxelSetAbstraction(BaseModule):
                 for bs_idx in range(batch_size):
                     xyz_batch_cnt[bs_idx] = (cur_coords[:, 0] == bs_idx).sum()
 
-                pooled_points, pooled_features = voxel_sa_layer(
+                _, pooled_features = voxel_sa_layer(
                     xyz=xyz.contiguous(),
                     xyz_batch_cnt=xyz_batch_cnt,
                     new_xyz=key_xyz.contiguous(),

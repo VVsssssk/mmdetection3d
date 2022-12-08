@@ -336,7 +336,7 @@ class CenterHead(BaseModule):
             heads = copy.deepcopy(common_heads)
             heads.update(dict(heatmap=(num_cls, num_heatmap_convs)))
             separate_head.update(
-                in_channels=share_conv_channel, heads=heads, num_cls=num_cls)
+                in_channels=share_conv_channel, heads=heads, num_cls=num_cls, bias=True)
             self.task_heads.append(builder.build_head(separate_head))
 
     def forward_single(self, x: Tensor) -> dict:

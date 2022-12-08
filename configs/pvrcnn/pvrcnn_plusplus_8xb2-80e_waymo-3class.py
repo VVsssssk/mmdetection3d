@@ -4,7 +4,7 @@ _base_ = [
 ]
 
 voxel_size = [0.1, 0.1, 0.15]
-point_cloud_range = [-74.88, -74.88, -2, 74.88, 74.88, 4]
+point_cloud_range = [-75.2, -75.2, -2, 75.2, 75.2, 4]
 
 data_root = 'data/waymo/kitti_format/'
 class_names = ['Car', 'Pedestrian', 'Cyclist']
@@ -15,7 +15,7 @@ db_sampler = dict(
     rate=1.0,
     prepare=dict(
         filter_by_difficulty=[-1],
-        filter_by_min_points=dict(Car=5, Pedestrian=5, Cyclist=5)),
+        filter_by_min_points=dict(Car=5, Pedestrian=10, Cyclist=10)),
     classes=class_names,
     sample_groups=dict(Car=15, Pedestrian=10, Cyclist=10),
     points_loader=dict(
@@ -59,7 +59,8 @@ test_pipeline = [
                 translation_std=[0, 0, 0]),
             dict(type='RandomFlip3D'),
             dict(
-                type='PointsRangeFilter', point_cloud_range=point_cloud_range)
+                type='PointsRangeFilter', point_cloud_range=point_cloud_range),
+            dict(type='PointShuffle'),
         ]),
     dict(type='Pack3DDetInputs', keys=['points'])
 ]
@@ -98,12 +99,11 @@ model = dict(
         type='CenterHead',
         in_channels=sum([256, 256]),
         tasks=[
-            dict(num_class=1, class_names=['Car']),
-            dict(num_class=1, class_names=['Pedestrian']),
-            dict(num_class=1, class_names=['Cyclist'])
+            dict(num_class=3, class_names=class_names),
         ],
         common_heads=dict(reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2)),
         share_conv_channel=64,
+        bias=True,
         bbox_coder=dict(
             type='CenterPointBBoxCoder',
             post_center_range=[-75.2, -75.2, -2, 75.2, 75.2, 4],
@@ -117,7 +117,7 @@ model = dict(
             type='SeparateHead', init_bias=-2.19, final_kernel=3),
         loss_cls=dict(
             type='mmdet.GaussianFocalLoss', reduction='mean', loss_weight=1),
-        loss_bbox=dict(type='mmdet.L1Loss', reduction='mean', loss_weight=2),
+        loss_bbox=dict(type='mmdet.L1Loss', reduction='mean', loss_weight=2),  # TODO:?
         norm_bbox=True),
     points_encoder=dict(
         type='VoxelSetAbstraction',
@@ -225,6 +225,8 @@ model = dict(
                 # local_aggregation_type='local_interpolation',
                 num_channels_of_local_aggregation=32,
                 num_reduced_channels=30,
+                filter_neighbor_with_roi=False,
+                radius_of_neighbor_with_roi=0,
                 groups_cfg_list=[
                     dict(
                         num_local_voxel=[3, 3, 3],
@@ -274,8 +276,6 @@ model = dict(
         rpn_proposal=dict(
             post_center_limit_range=[-75.2, -75.2, -2, 75.2, 75.2, 4],
             pc_range=point_cloud_range[:2],
-            max_per_img=500,
-            max_pool_nms=False,
             min_radius=2,
             score_threshold=0.1,
             out_size_factor=8,
@@ -326,15 +326,13 @@ model = dict(
         rpn=dict(
             post_center_limit_range=[-75.2, -75.2, -2, 75.2, 75.2, 4],
             pc_range=point_cloud_range[:2],
-            max_per_img=4096,
-            max_pool_nms=False,
             min_radius=2,  # ?
             score_threshold=0.1,
             out_size_factor=8,
             voxel_size=voxel_size[:2],
             nms_type='rotate',
-            pre_max_size=1024,
-            post_max_size=100,
+            pre_max_size=4096,
+            post_max_size=500,
             nms_thr=0.7),
         rcnn=dict(
             use_rotate_nms=True,

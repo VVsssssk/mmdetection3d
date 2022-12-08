@@ -43,7 +43,7 @@ class Batch3DRoIGridExtractor(BaseModule):
         batch_size = int(batch_inds.max()) + 1
         roi_boxes_list = []
         for i in range(batch_size):
-            roi_boxes_list.append(rois[rois[:, 0] == i])
+            roi_boxes_list.append(rois[rois[:, 0] == i][:,1:])
         xyz = coordinate
         xyz_batch_cnt = xyz.new_zeros(batch_size).int()
         for k in range(batch_size):
@@ -58,7 +58,7 @@ class Batch3DRoIGridExtractor(BaseModule):
         for k in range(batch_size):
             new_xyz_batch_cnt[k] = ((rois_batch_inds == k).sum() *
                                     roi_grid.size(1))
-        pooled_points, pooled_features = self.roi_grid_pool_layer(
+        _, pooled_features = self.roi_grid_pool_layer(
             xyz=xyz.contiguous(),
             xyz_batch_cnt=xyz_batch_cnt,
             new_xyz=new_xyz.contiguous(),
