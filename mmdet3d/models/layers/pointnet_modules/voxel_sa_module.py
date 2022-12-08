@@ -455,7 +455,9 @@ class VectorPoolAggregationModuleMSG(nn.Module):
         if roi_boxes_list is not None:
             for roi_boxes in roi_boxes_list:
                 gemo_center_roi_boxes = roi_boxes.clone().detach()
-                gemo_center_roi_boxes[:, 2] = roi_boxes[:, 2] + roi_boxes[:, 5] / 2
+                gemo_center_roi_boxes[:,
+                                      2] = roi_boxes[:,
+                                                     2] + roi_boxes[:, 5] / 2
                 gemo_center_boxes_list.append(gemo_center_roi_boxes)
             if self.filter_neighbor_with_roi:
                 point_features = torch.cat(
@@ -465,7 +467,8 @@ class VectorPoolAggregationModuleMSG(nn.Module):
                 for bs_idx in range(len(xyz_batch_cnt)):
                     _, valid_mask = self.sample_points_with_roi(
                         rois=gemo_center_boxes_list[bs_idx],
-                        points=xyz[cur_start:cur_start + xyz_batch_cnt[bs_idx]])
+                        points=xyz[cur_start:cur_start +
+                                   xyz_batch_cnt[bs_idx]])
                     point_features_list.append(
                         point_features[cur_start:cur_start +
                                        xyz_batch_cnt[bs_idx]][valid_mask])

@@ -117,7 +117,8 @@ model = dict(
             type='SeparateHead', init_bias=-2.19, final_kernel=3),
         loss_cls=dict(
             type='mmdet.GaussianFocalLoss', reduction='mean', loss_weight=1),
-        loss_bbox=dict(type='mmdet.L1Loss', reduction='mean', loss_weight=2),  # TODO:?
+        loss_bbox=dict(type='mmdet.L1Loss', reduction='mean',
+                       loss_weight=2),  # TODO:?
         norm_bbox=True),
     points_encoder=dict(
         type='VoxelSetAbstraction',
